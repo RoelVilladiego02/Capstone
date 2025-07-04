@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const PatientDashboard = () => {
@@ -11,41 +11,46 @@ const PatientDashboard = () => {
     paymentMethod: ''
   });
 
-  // Add mock data for upcoming teleconsultations
-  const upcomingTeleconsults = [
-    {
-      id: 1,
-      doctor: 'Dr. Smith',
-      date: '2024-02-20',
-      time: '10:00 AM',
-      concern: 'Follow-up Consultation',
-      status: 'Scheduled',
-      meetingLink: '#'
-    },
-    {
-      id: 2,
-      doctor: 'Dr. Johnson',
-      date: '2024-02-22',
-      time: '2:30 PM',
-      concern: 'Medication Review',
-      status: 'Ready',
-      meetingLink: 'https://meet.clinica.com/abc123'
-    }
-  ];
+  // Fetch real data from backend
+  const [upcomingTeleconsults, setUpcomingTeleconsults] = useState([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [recentPrescriptions, setRecentPrescriptions] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const upcomingAppointments = [
-    { id: 1, date: '2023-08-15', time: '10:00 AM', doctor: 'Dr. Smith', type: 'Check-up' }
-  ];
+  // Use your actual auth token and user id logic
+  const token = localStorage.getItem('authToken');
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const patientId = currentUser?.id;
 
-  const recentPrescriptions = [
-    { id: 1, medication: 'Amoxicillin', dosage: '500mg', date: '2023-08-01' }
-  ];
+  useEffect(() => {
+    setLoading(true);
 
-  const doctors = [
-    { id: 1, name: 'Dr. Smith', specialization: 'General Medicine', fee: 800 },
-    { id: 2, name: 'Dr. Johnson', specialization: 'Pediatrics', fee: 1000 },
-    { id: 3, name: 'Dr. Williams', specialization: 'Internal Medicine', fee: 1200 }
-  ];
+    // Fetch appointments for this patient
+    fetch(`/api/appointments?patient_id=${patientId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        setUpcomingAppointments(data.filter(a => a.type !== 'Teleconsultation'));
+        setUpcomingTeleconsults(data.filter(a => a.type === 'Teleconsultation'));
+      });
+
+    // Fetch prescriptions for this patient
+    fetch(`/api/prescriptions?patient_id=${patientId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setRecentPrescriptions(data));
+
+    // Fetch doctors
+    fetch('/api/doctors', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setDoctors(data))
+      .finally(() => setLoading(false));
+  }, [token, patientId]);
 
   const timeSlots = [
     '09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'
@@ -57,6 +62,8 @@ const PatientDashboard = () => {
     console.log('Booking submitted:', bookingData);
     setShowBookingModal(false);
   };
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div className="container-fluid py-4 bg-light">

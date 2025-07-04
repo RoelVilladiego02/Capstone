@@ -4,16 +4,16 @@ import { useAuth } from '../contexts/AuthContext';
 const UserProfile = () => {
   const { currentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+
+  // Use all available fields from currentUser, fallback to empty string if missing
   const [formData, setFormData] = useState({
-    fullName: currentUser?.name || '',
+    name: currentUser?.name || '',
+    username: currentUser?.username || '',
     email: currentUser?.email || '',
-    phone: currentUser?.phone || '',
+    phone_number: currentUser?.phone_number || '',
     address: currentUser?.address || '',
-    emergencyContact: currentUser?.emergencyContact || {
-      name: '',
-      relationship: '',
-      phone: ''
-    }
+    role: currentUser?.role || '',
+    // Add more fields as needed
   });
 
   const handleSubmit = (e) => {
@@ -33,25 +33,32 @@ const UserProfile = () => {
                   className="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mx-auto"
                   style={{ width: '120px', height: '120px', fontSize: '3rem' }}
                 >
-                  {formData.fullName.charAt(0)}
+                  {formData.name.charAt(0) || '?'}
                 </div>
-                <h4 className="mt-3 mb-0">{formData.fullName}</h4>
-                <span className="text-muted">{currentUser?.role}</span>
+                <h4 className="mt-3 mb-0">{formData.name}</h4>
+                <span className="text-muted">{formData.role}</span>
               </div>
-
               <div className="border-top pt-3">
                 <div className="row text-start mt-3">
                   <div className="col-12 mb-2">
+                    <strong><i className="bi bi-person-badge me-2"></i>Username:</strong>
+                    <p className="text-muted mb-0">{formData.username || <span className="text-secondary">N/A</span>}</p>
+                  </div>
+                  <div className="col-12 mb-2">
                     <strong><i className="bi bi-envelope me-2"></i>Email:</strong>
-                    <p className="text-muted mb-0">{formData.email}</p>
+                    <p className="text-muted mb-0">{formData.email || <span className="text-secondary">N/A</span>}</p>
                   </div>
                   <div className="col-12 mb-2">
                     <strong><i className="bi bi-telephone me-2"></i>Phone:</strong>
-                    <p className="text-muted mb-0">{formData.phone}</p>
+                    <p className="text-muted mb-0">{formData.phone_number || <span className="text-secondary">N/A</span>}</p>
+                  </div>
+                  <div className="col-12 mb-2">
+                    <strong><i className="bi bi-geo-alt me-2"></i>Address:</strong>
+                    <p className="text-muted mb-0">{formData.address || <span className="text-secondary">N/A</span>}</p>
                   </div>
                   <div className="col-12">
-                    <strong><i className="bi bi-geo-alt me-2"></i>Address:</strong>
-                    <p className="text-muted mb-0">{formData.address}</p>
+                    <strong><i className="bi bi-person-lines-fill me-2"></i>Role:</strong>
+                    <p className="text-muted mb-0">{formData.role || <span className="text-secondary">N/A</span>}</p>
                   </div>
                 </div>
               </div>
@@ -98,18 +105,26 @@ const UserProfile = () => {
 
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
-                  {/* Form fields */}
                   <div className="col-md-6">
                     <label className="form-label">Full Name</label>
                     <input
                       type="text"
                       className="form-control"
-                      value={formData.fullName}
-                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
                       disabled={!isEditing}
                     />
                   </div>
-                  
+                  <div className="col-md-6">
+                    <label className="form-label">Username</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.username}
+                      onChange={(e) => setFormData({...formData, username: e.target.value})}
+                      disabled={!isEditing}
+                    />
+                  </div>
                   <div className="col-md-6">
                     <label className="form-label">Email</label>
                     <input
@@ -120,18 +135,16 @@ const UserProfile = () => {
                       disabled={!isEditing}
                     />
                   </div>
-
                   <div className="col-md-6">
                     <label className="form-label">Phone</label>
                     <input
                       type="tel"
                       className="form-control"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      value={formData.phone_number}
+                      onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
                       disabled={!isEditing}
                     />
                   </div>
-
                   <div className="col-12">
                     <label className="form-label">Address</label>
                     <textarea
@@ -142,7 +155,15 @@ const UserProfile = () => {
                       disabled={!isEditing}
                     ></textarea>
                   </div>
-
+                  <div className="col-md-6">
+                    <label className="form-label">Role</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.role}
+                      disabled
+                    />
+                  </div>
                   {isEditing && (
                     <div className="col-12 mt-4">
                       <button 

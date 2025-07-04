@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const AllPrescriptions = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -6,6 +6,8 @@ const AllPrescriptions = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [newPrescription, setNewPrescription] = useState({
     patientName: '',
     patientId: '',
@@ -15,51 +17,47 @@ const AllPrescriptions = () => {
     notes: '',
     status: 'Active'
   });
-  const [prescriptions, setPrescriptions] = useState([
-    {
-      id: 1,
-      patientName: 'John Doe',
-      patientId: 'P001',
-      date: '2024-02-15',
-      diagnosis: 'Upper Respiratory Infection',
-      medications: [
-        { name: 'Amoxicillin', dosage: '500mg', frequency: '3x daily', duration: '7 days' },
-        { name: 'Paracetamol', dosage: '500mg', frequency: 'As needed', duration: '5 days' },
-        { name: 'Loratadine', dosage: '10mg', frequency: 'Once daily', duration: '5 days' }
-      ],
-      status: 'Active',
-      notes: 'Take with meals. Complete full course of antibiotics.',
-      prescribedBy: 'Dr. Smith'
-    },
-    {
-      id: 2,
-      patientName: 'Jane Smith',
-      patientId: 'P002',
-      date: '2024-02-16',
-      diagnosis: 'Hypertension',
-      medications: [
-        { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days' },
-        { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', duration: '30 days' }
-      ],
-      status: 'Active',
-      notes: 'Monitor blood pressure regularly.',
-      prescribedBy: 'Dr. Brown'
-    },
-    {
-      id: 3,
-      patientName: 'Emily Johnson',
-      patientId: 'P003',
-      date: '2024-02-17',
-      diagnosis: 'Diabetes Type 2',
-      medications: [
-        { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', duration: '60 days' },
-        { name: 'Glibenclamide', dosage: '5mg', frequency: 'Once daily', duration: '60 days' }
-      ],
-      status: 'Active',
-      notes: 'Diet control and regular exercise are important.',
-      prescribedBy: 'Dr. White'
+
+  // Get auth token and doctor ID
+  const token = localStorage.getItem('authToken');
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const doctorId = currentUser?.id;
+
+  // Fetch prescriptions
+  const fetchPrescriptions = useCallback(async () => {
+    if (!doctorId) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/prescriptions', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      
+      // Transform the data to match the expected format
+      const transformedPrescriptions = data.map(prescription => ({
+        id: prescription.id,
+        patientName: prescription.patient?.user?.name || 'Unknown',
+        patientId: prescription.patient_id,
+        date: prescription.prescribed_date,
+        diagnosis: prescription.diagnosis,
+        medications: prescription.medications || [],
+        status: prescription.status || 'Active',
+        notes: prescription.notes,
+        prescribedBy: prescription.doctor?.name || 'Dr. Unknown'
+      }));
+      
+      setPrescriptions(transformedPrescriptions);
+    } catch (error) {
+      console.error('Error fetching prescriptions:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, [token, doctorId]);
+
+  useEffect(() => {
+    fetchPrescriptions();
+  }, [fetchPrescriptions]);
 
   const handleAddMedication = () => {
     setNewPrescription({
@@ -92,26 +90,66 @@ const AllPrescriptions = () => {
     });
   };
 
-  const handleSavePrescription = (e) => {
+  const handleSavePrescription = async (e) => {
     e.preventDefault();
-    const newPrescriptionWithId = {
-      ...newPrescription,
-      id: prescriptions.length + 1,
-      prescribedBy: 'Dr. Smith', // Replace with actual logged in doctor
-      status: 'Active'
-    };
-    setPrescriptions([newPrescriptionWithId, ...prescriptions]);
-    setShowAddModal(false);
-    setNewPrescription({
-      patientName: '',
-      patientId: '',
-      date: new Date().toISOString().split('T')[0],
-      diagnosis: '',
-      medications: [{ name: '', dosage: '', frequency: '', duration: '' }],
-      notes: '',
-      status: 'Active'
-    });
+    try {
+      const prescriptionData = {
+        patient_id: newPrescription.patientId,
+        doctor_id: doctorId,
+        prescribed_date: newPrescription.date,
+        diagnosis: newPrescription.diagnosis,
+        medications: newPrescription.medications,
+        notes: newPrescription.notes,
+        status: newPrescription.status
+      };
+
+      const response = await fetch('/api/prescriptions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(prescriptionData)
+      });
+
+      if (response.ok) {
+        const newPrescriptionWithId = await response.json();
+        setPrescriptions([newPrescriptionWithId, ...prescriptions]);
+        setShowAddModal(false);
+        setNewPrescription({
+          patientName: '',
+          patientId: '',
+          date: new Date().toISOString().split('T')[0],
+          diagnosis: '',
+          medications: [{ name: '', dosage: '', frequency: '', duration: '' }],
+          notes: '',
+          status: 'Active'
+        });
+      }
+    } catch (error) {
+      console.error('Error saving prescription:', error);
+    }
   };
+
+  // Filter prescriptions based on search and date
+  const filteredPrescriptions = prescriptions.filter(prescription => {
+    const matchesSearch = prescription.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         prescription.patientId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDate = !filterDate || prescription.date === filterDate;
+    return matchesSearch && matchesDate;
+  });
+
+  if (loading) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -170,50 +208,59 @@ const AllPrescriptions = () => {
                 </tr>
               </thead>
               <tbody>
-                {prescriptions.map(prescription => (
-                  <tr key={prescription.id}>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <div className="avatar me-2">
-                          <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
-                               style={{ width: '40px', height: '40px' }}>
-                            {prescription.patientName.charAt(0)}
+                {filteredPrescriptions.length > 0 ? (
+                  filteredPrescriptions.map(prescription => (
+                    <tr key={prescription.id}>
+                      <td>
+                        <div className="d-flex align-items-center">
+                          <div className="avatar me-2">
+                            <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                 style={{ width: '40px', height: '40px' }}>
+                              {prescription.patientName.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="fw-medium">{prescription.patientName}</div>
+                            <small className="text-muted">ID: {prescription.patientId}</small>
                           </div>
                         </div>
-                        <div>
-                          <div className="fw-medium">{prescription.patientName}</div>
-                          <small className="text-muted">ID: {prescription.patientId}</small>
+                      </td>
+                      <td>{new Date(prescription.date).toLocaleDateString()}</td>
+                      <td>
+                        {prescription.medications.map((med, index) => (
+                          <div key={index}>
+                            <small>{med.name} - {med.dosage}</small>
+                          </div>
+                        ))}
+                      </td>
+                      <td>
+                        <span className={`badge bg-${prescription.status === 'Active' ? 'success' : 'secondary'}`}>
+                          {prescription.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="btn-group">
+                          <button 
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => {
+                              setSelectedPrescription(prescription);
+                              setShowModal(true);
+                            }}
+                          >
+                            <i className="bi bi-eye me-1"></i>View Details
+                          </button>
                         </div>
-                      </div>
-                    </td>
-                    <td>{new Date(prescription.date).toLocaleDateString()}</td>
-                    <td>
-                      {prescription.medications.map((med, index) => (
-                        <div key={index}>
-                          <small>{med.name} - {med.dosage}</small>
-                        </div>
-                      ))}
-                    </td>
-                    <td>
-                      <span className={`badge bg-${prescription.status === 'Active' ? 'success' : 'secondary'}`}>
-                        {prescription.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => {
-                            setSelectedPrescription(prescription);
-                            setShowModal(true);
-                          }}
-                        >
-                          <i className="bi bi-eye me-1"></i>View Details
-                        </button>
-                      </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="text-center py-4 text-muted">
+                      <i className="bi bi-prescription fs-1 d-block mb-2"></i>
+                      No prescriptions found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -301,19 +348,6 @@ const AllPrescriptions = () => {
                 <div className="modal-body">
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">Patient Name</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        required
-                        value={newPrescription.patientName}
-                        onChange={(e) => setNewPrescription({
-                          ...newPrescription,
-                          patientName: e.target.value
-                        })}
-                      />
-                    </div>
-                    <div className="col-md-6">
                       <label className="form-label">Patient ID</label>
                       <input
                         type="text"
@@ -323,6 +357,19 @@ const AllPrescriptions = () => {
                         onChange={(e) => setNewPrescription({
                           ...newPrescription,
                           patientId: e.target.value
+                        })}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Patient Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        required
+                        value={newPrescription.patientName}
+                        onChange={(e) => setNewPrescription({
+                          ...newPrescription,
+                          patientName: e.target.value
                         })}
                       />
                     </div>

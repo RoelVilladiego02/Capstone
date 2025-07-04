@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const AllMedicalRecords = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -6,6 +6,8 @@ const AllMedicalRecords = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [medicalRecords, setMedicalRecords] = useState([]);
   const [newRecord, setNewRecord] = useState({
     patientName: '',
     patientId: '',
@@ -27,152 +29,161 @@ const AllMedicalRecords = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedRecord, setEditedRecord] = useState(null);
 
+  // Get auth token and doctor ID
+  const token = localStorage.getItem('authToken');
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const doctorId = currentUser?.id;
+
+  // Fetch medical records
+  const fetchMedicalRecords = useCallback(async () => {
+    if (!doctorId) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/medical-records', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      
+      // Transform the data to match the expected format
+      const transformedRecords = data.map(record => ({
+        id: record.id,
+        patientName: record.patient?.user?.name || 'Unknown',
+        patientId: record.patient_id,
+        date: record.visit_date,
+        type: record.type || 'Consultation',
+        diagnosis: record.diagnosis,
+        vitals: record.vital_signs || {
+          temperature: '',
+          bloodPressure: '',
+          heartRate: '',
+          respiratoryRate: '',
+          oxygenSaturation: ''
+        },
+        symptoms: record.symptoms || [],
+        treatment: record.treatment,
+        notes: record.notes,
+        status: record.status || 'Active'
+      }));
+      
+      setMedicalRecords(transformedRecords);
+    } catch (error) {
+      console.error('Error fetching medical records:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, doctorId]);
+
+  useEffect(() => {
+    fetchMedicalRecords();
+  }, [fetchMedicalRecords]);
+
   const handleEditRecord = () => {
     setIsEditing(true);
     setEditedRecord({...selectedRecord});
   };
 
-  const handleSaveEdit = () => {
-    // Here you would typically make an API call to update the record
-    const updatedRecords = medicalRecords.map(record => 
-      record.id === editedRecord.id ? editedRecord : record
-    );
-    // Update the records list
-    medicalRecords.splice(0, medicalRecords.length, ...updatedRecords);
-    setSelectedRecord(editedRecord);
-    setIsEditing(false);
-  };
+  const handleSaveEdit = async () => {
+    try {
+      const response = await fetch(`/api/medical-records/${editedRecord.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          diagnosis: editedRecord.diagnosis,
+          treatment: editedRecord.treatment,
+          notes: editedRecord.notes,
+          vital_signs: editedRecord.vitals,
+          status: editedRecord.status
+        })
+      });
 
-  // Enhanced mock data for medical records
-  const medicalRecords = [
-    {
-      id: 1,
-      patientName: 'John Doe',
-      patientId: 'P001',
-      date: '2024-02-15',
-      type: 'Consultation',
-      diagnosis: 'Upper Respiratory Infection',
-      vitals: {
-        temperature: '37.8°C',
-        bloodPressure: '120/80',
-        heartRate: '75',
-        respiratoryRate: '16',
-        oxygenSaturation: '98%'
-      },
-      symptoms: ['Fever', 'Cough', 'Sore throat'],
-      treatment: 'Prescribed antibiotics and rest',
-      notes: 'Follow-up in 1 week if symptoms persist',
-      status: 'Active'
-    },
-    {
-      id: 2,
-      patientName: 'Maria Garcia',
-      patientId: 'P002',
-      date: '2024-02-14',
-      type: 'Follow-up',
-      diagnosis: 'Hypertension - Well Controlled',
-      vitals: {
-        temperature: '36.6°C',
-        bloodPressure: '135/85',
-        heartRate: '68',
-        respiratoryRate: '14',
-        oxygenSaturation: '99%'
-      },
-      symptoms: ['None reported'],
-      treatment: 'Continue current medication',
-      notes: 'BP showing improvement. Maintain current regimen',
-      status: 'Active'
-    },
-    {
-      id: 3,
-      patientName: 'Robert Brown',
-      patientId: 'P003',
-      date: '2024-02-13',
-      type: 'Emergency',
-      diagnosis: 'Acute Bronchitis',
-      vitals: {
-        temperature: '38.5°C',
-        bloodPressure: '125/82',
-        heartRate: '88',
-        respiratoryRate: '20',
-        oxygenSaturation: '95%'
-      },
-      symptoms: ['High fever', 'Severe cough', 'Chest pain', 'Difficulty breathing'],
-      treatment: 'Prescribed bronchodilators and antibiotics',
-      notes: 'Urgent follow-up required in 3 days',
-      status: 'Critical'
-    },
-    {
-      id: 4,
-      patientName: 'Sarah Wilson',
-      patientId: 'P004',
-      date: '2024-02-12',
-      type: 'Routine Check-up',
-      diagnosis: 'Diabetes Type 2 - Controlled',
-      vitals: {
-        temperature: '36.7°C',
-        bloodPressure: '128/78',
-        heartRate: '72',
-        respiratoryRate: '15',
-        oxygenSaturation: '98%'
-      },
-      symptoms: ['Regular monitoring'],
-      treatment: 'Adjust insulin dosage',
-      notes: 'HbA1c levels improved. Continue diet and exercise plan',
-      status: 'Stable'
-    },
-    {
-      id: 5,
-      patientName: 'James Anderson',
-      patientId: 'P005',
-      date: '2024-02-11',
-      type: 'Post-Surgery',
-      diagnosis: 'Post-Appendectomy Recovery',
-      vitals: {
-        temperature: '37.1°C',
-        bloodPressure: '118/75',
-        heartRate: '80',
-        respiratoryRate: '16',
-        oxygenSaturation: '97%'
-      },
-      symptoms: ['Mild incision site pain'],
-      treatment: 'Wound care and pain management',
-      notes: 'Healing well. Remove sutures in 5 days',
-      status: 'Recovering'
+      if (response.ok) {
+        // Update the records list
+        const updatedRecords = medicalRecords.map(record => 
+          record.id === editedRecord.id ? editedRecord : record
+        );
+        setMedicalRecords(updatedRecords);
+        setSelectedRecord(editedRecord);
+        setIsEditing(false);
+      }
+    } catch (error) {
+      console.error('Error updating medical record:', error);
     }
-  ];
-
-  const handleAddRecord = (e) => {
-    e.preventDefault();
-    // Here you would typically send the data to your backend
-    const newMedicalRecord = {
-      id: medicalRecords.length + 1,
-      ...newRecord,
-      symptoms: newRecord.symptoms.split(',').map(s => s.trim()),
-      dateCreated: new Date().toISOString()
-    };
-
-    medicalRecords.unshift(newMedicalRecord);
-    setShowAddModal(false);
-    setNewRecord({
-      patientName: '',
-      patientId: '',
-      date: new Date().toISOString().split('T')[0],
-      type: '',
-      diagnosis: '',
-      vitals: {
-        temperature: '',
-        bloodPressure: '',
-        heartRate: '',
-        respiratoryRate: '',
-        oxygenSaturation: ''
-      },
-      symptoms: '',
-      treatment: '',
-      notes: '',
-      status: 'Active'
-    });
   };
+
+  const handleAddRecord = async (e) => {
+    e.preventDefault();
+    try {
+      const recordData = {
+        patient_id: newRecord.patientId,
+        doctor_id: doctorId,
+        visit_date: newRecord.date,
+        diagnosis: newRecord.diagnosis,
+        treatment: newRecord.treatment,
+        notes: newRecord.notes,
+        vital_signs: newRecord.vitals,
+        status: newRecord.status
+      };
+
+      const response = await fetch('/api/medical-records', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(recordData)
+      });
+
+      if (response.ok) {
+        const newMedicalRecord = await response.json();
+        setMedicalRecords([newMedicalRecord, ...medicalRecords]);
+        setShowAddModal(false);
+        setNewRecord({
+          patientName: '',
+          patientId: '',
+          date: new Date().toISOString().split('T')[0],
+          type: '',
+          diagnosis: '',
+          vitals: {
+            temperature: '',
+            bloodPressure: '',
+            heartRate: '',
+            respiratoryRate: '',
+            oxygenSaturation: ''
+          },
+          symptoms: '',
+          treatment: '',
+          notes: '',
+          status: 'Active'
+        });
+      }
+    } catch (error) {
+      console.error('Error adding medical record:', error);
+    }
+  };
+
+  // Filter records based on search and date
+  const filteredRecords = medicalRecords.filter(record => {
+    const matchesSearch = record.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         record.patientId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDate = !filterDate || record.date === filterDate;
+    return matchesSearch && matchesDate;
+  });
+
+  if (loading) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -232,45 +243,54 @@ const AllMedicalRecords = () => {
                 </tr>
               </thead>
               <tbody>
-                {medicalRecords.map(record => (
-                  <tr key={record.id}>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <div className="avatar me-2">
-                          <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
-                               style={{ width: '40px', height: '40px' }}>
-                            {record.patientName.charAt(0)}
+                {filteredRecords.length > 0 ? (
+                  filteredRecords.map(record => (
+                    <tr key={record.id}>
+                      <td>
+                        <div className="d-flex align-items-center">
+                          <div className="avatar me-2">
+                            <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                 style={{ width: '40px', height: '40px' }}>
+                              {record.patientName.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="fw-medium">{record.patientName}</div>
+                            <small className="text-muted">ID: {record.patientId}</small>
                           </div>
                         </div>
-                        <div>
-                          <div className="fw-medium">{record.patientName}</div>
-                          <small className="text-muted">ID: {record.patientId}</small>
+                      </td>
+                      <td>{new Date(record.date).toLocaleDateString()}</td>
+                      <td>{record.type}</td>
+                      <td>{record.diagnosis}</td>
+                      <td>
+                        <span className={`badge bg-${record.status === 'Active' ? 'success' : 'secondary'}`}>
+                          {record.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="btn-group">
+                          <button 
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => {
+                              setSelectedRecord(record);
+                              setShowModal(true);
+                            }}
+                          >
+                            <i className="bi bi-eye me-1"></i>View Details
+                          </button>
                         </div>
-                      </div>
-                    </td>
-                    <td>{new Date(record.date).toLocaleDateString()}</td>
-                    <td>{record.type}</td>
-                    <td>{record.diagnosis}</td>
-                    <td>
-                      <span className={`badge bg-${record.status === 'Active' ? 'success' : 'secondary'}`}>
-                        {record.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => {
-                            setSelectedRecord(record);
-                            setShowModal(true);
-                          }}
-                        >
-                          <i className="bi bi-eye me-1"></i>View Details
-                        </button>
-                      </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="text-center py-4 text-muted">
+                      <i className="bi bi-file-earmark-medical fs-1 d-block mb-2"></i>
+                      No medical records found
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -290,22 +310,22 @@ const AllMedicalRecords = () => {
                 <div className="modal-body">
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">Patient Name</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={newRecord.patientName}
-                        onChange={(e) => setNewRecord({...newRecord, patientName: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <div className="col-md-6">
                       <label className="form-label">Patient ID</label>
                       <input
                         type="text"
                         className="form-control"
                         value={newRecord.patientId}
                         onChange={(e) => setNewRecord({...newRecord, patientId: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Patient Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newRecord.patientName}
+                        onChange={(e) => setNewRecord({...newRecord, patientName: e.target.value})}
                         required
                       />
                     </div>

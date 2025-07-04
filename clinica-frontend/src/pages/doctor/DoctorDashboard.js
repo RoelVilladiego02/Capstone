@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -33,68 +33,119 @@ const DoctorDashboard = () => {
     respiratoryRate: '',
     oxygenSaturation: ''
   });
+  const [loading, setLoading] = useState(true);
 
-  // Updated stats using existing metrics
-  const stats = {
-    todayPatients: 8,
-    pendingRecords: 5,
-    pendingDiagnostics: 3,
-    pendingPrescriptions: 4
-  };
+  // Real data state
+  const [stats, setStats] = useState({
+    todayPatients: 0,
+    pendingRecords: 0,
+    pendingDiagnostics: 0,
+    pendingPrescriptions: 0
+  });
+  const [todaysAppointments, setTodaysAppointments] = useState([]);
+  const [upcomingTeleconsults, setUpcomingTeleconsults] = useState([]);
 
-  // Keep and update teleconsultations data
-  const upcomingTeleconsults = [
-    {
-      id: 1,
-      patientName: 'John Doe',
-      time: '10:00 AM',
-      date: '2024-02-20',
-      concern: 'Follow-up Consultation',
-      status: 'Scheduled',
-      meetingLink: '#'
-    },
-    {
-      id: 2,
-      patientName: 'Sarah Wilson',
-      time: '2:30 PM',
-      date: '2024-02-22',
-      concern: 'Medication Review',
-      status: 'Ready',
-      meetingLink: 'https://meet.clinica.com/abc123'
+  // Get auth token and doctor ID (replace with your actual auth logic)
+  const token = localStorage.getItem('authToken');
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const doctorId = currentUser?.id;
+
+  // Define fetchDashboardData with useCallback to avoid dependency warning
+  const fetchDashboardData = useCallback(async () => {
+    if (!doctorId) return;
+    
+    setLoading(true);
+    try {
+      // Fetch doctor stats
+      const statsResponse = await fetch(`/api/analytics/doctors/${doctorId}/summary`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const statsData = await statsResponse.json();
+      setStats({
+        todayPatients: statsData.today_patients,
+        pendingRecords: statsData.pending_records,
+        pendingDiagnostics: statsData.pending_diagnostics,
+        pendingPrescriptions: statsData.pending_prescriptions
+      });
+
+      // Fetch today's appointments
+      const appointmentsResponse = await fetch(`/api/doctors/${doctorId}/todays-appointments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const appointmentsData = await appointmentsResponse.json();
+      setTodaysAppointments(appointmentsData);
+
+      // Fetch upcoming teleconsultations
+      const teleconsultsResponse = await fetch(`/api/doctors/${doctorId}/teleconsultations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const teleconsultsData = await teleconsultsResponse.json();
+      setUpcomingTeleconsults(teleconsultsData);
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, [token, doctorId]);
 
-  // Updated today's appointments section
-  const todaysAppointments = [
-    { id: 1, time: '9:00 AM', patient: 'John Doe', type: 'Follow-up', status: 'Waiting' },
-    { id: 2, time: '10:30 AM', patient: 'Jane Smith', type: 'New Patient', status: 'Scheduled' },
-    { id: 3, time: '2:00 PM', patient: 'Mike Johnson', type: 'Check-up', status: 'Confirmed' }
-  ];
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const handleStartSession = (appointment) => {
     setSelectedPatient(appointment);
     setShowSessionModal(true);
   };
 
-  const handleEndSession = () => {
-    // Here you would typically save the session data
-    console.log('Session ended:', {
-      patient: selectedPatient,
-      notes: sessionNotes,
-      vitals: vitalSigns,
-      endTime: new Date().toISOString()
-    });
-    
-    setShowSessionModal(false);
-    setSelectedPatient(null);
-    setSessionNotes('');
-    setVitalSigns({
-      temperature: '',
-      bloodPressure: '',
-      heartRate: '',
-      respiratoryRate: '',
-      oxygenSaturation: ''
-    });
+  const handleEndSession = async () => {
+    try {
+      // Create or update medical record with session data
+      const sessionData = {
+        patient_id: selectedPatient.patient_id,
+        doctor_id: doctorId,
+        visit_date: new Date().toISOString().split('T')[0],
+        diagnosis: 'Session completed', // This would be filled by the doctor
+        treatment: 'Treatment plan', // This would be filled by the doctor
+        notes: 'Session notes',
+        vital_signs: vitalSigns,
+        session_notes: sessionNotes,
+      };
+
+      const response = await fetch('/api/medical-records/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(sessionData)
+      });
+
+      if (response.ok) {
+        console.log('Session ended and saved:', {
+          patient: selectedPatient,
+          notes: sessionNotes,
+          vitals: vitalSigns,
+          endTime: new Date().toISOString()
+        });
+        
+        // Refresh dashboard data
+        await fetchDashboardData();
+        
+        setShowSessionModal(false);
+        setSelectedPatient(null);
+        setSessionNotes('');
+        setVitalSigns({
+          temperature: '',
+          bloodPressure: '',
+          heartRate: '',
+          respiratoryRate: '',
+          oxygenSaturation: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error saving session:', error);
+    }
   };
 
   const handleUpdateMedicalRecord = () => {
@@ -134,12 +185,24 @@ const DoctorDashboard = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container-fluid py-4 bg-light">
       <div className="row mb-4">
         <div className="col-12">
           <h2 className="fw-bold mb-0">Doctor Dashboard</h2>
-          <p className="text-muted">Welcome back, Dr. Smith</p>
+          <p className="text-muted">Welcome back, Dr. {currentUser?.name || 'Doctor'}</p>
         </div>
       </div>
       
@@ -155,7 +218,7 @@ const DoctorDashboard = () => {
               <p className="text-muted fw-light mb-1">Today's Patients</p>
               <h2 className="display-6 fw-bold mb-0">{stats.todayPatients}</h2>
               <div className="text-success small mt-2">
-                <i className="bi bi-arrow-up"></i> 2 from yesterday
+                <i className="bi bi-arrow-up"></i> Active today
               </div>
             </div>
           </div>
@@ -235,42 +298,51 @@ const DoctorDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {todaysAppointments.map(apt => (
-                      <tr key={apt.id}>
-                        <td className="ps-4">
-                          <div className="d-flex align-items-center">
-                            <div className="me-3">
-                              <i className="bi bi-clock text-muted"></i>
+                    {todaysAppointments.length > 0 ? (
+                      todaysAppointments.map(apt => (
+                        <tr key={apt.id}>
+                          <td className="ps-4">
+                            <div className="d-flex align-items-center">
+                              <div className="me-3">
+                                <i className="bi bi-clock text-muted"></i>
+                              </div>
+                              <span className="fw-medium">{apt.time}</span>
                             </div>
-                            <span className="fw-medium">{apt.time}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <div className="avatar-circle me-2 bg-light text-primary d-flex align-items-center justify-content-center" 
-                                 style={{ width: '36px', height: '36px', borderRadius: '50%' }}>
-                              {apt.patient.charAt(0)}
+                          </td>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <div className="avatar-circle me-2 bg-light text-primary d-flex align-items-center justify-content-center" 
+                                   style={{ width: '36px', height: '36px', borderRadius: '50%' }}>
+                                {apt.patient.charAt(0)}
+                              </div>
+                              <span>{apt.patient}</span>
                             </div>
-                            <span>{apt.patient}</span>
-                          </div>
-                        </td>
-                        <td><span className="text-muted">{apt.type}</span></td>
-                        <td>
-                          <span className={`badge text-bg-${getStatusColor(apt.status)} rounded-pill px-3 py-2`}>
-                            {apt.status}
-                          </span>
-                        </td>
-                        <td className="text-end pe-4">
-                          <button 
-                            className="btn btn-sm btn-outline-danger rounded-pill px-3"
-                            onClick={() => handleStartSession(apt)}
-                          >
-                            <i className="bi bi-play-fill me-1"></i>
-                            Start Session
-                          </button>
+                          </td>
+                          <td><span className="text-muted">{apt.type}</span></td>
+                          <td>
+                            <span className={`badge text-bg-${getStatusColor(apt.status)} rounded-pill px-3 py-2`}>
+                              {apt.status}
+                            </span>
+                          </td>
+                          <td className="text-end pe-4">
+                            <button 
+                              className="btn btn-sm btn-outline-danger rounded-pill px-3"
+                              onClick={() => handleStartSession(apt)}
+                            >
+                              <i className="bi bi-play-fill me-1"></i>
+                              Start Session
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="text-center py-4 text-muted">
+                          <i className="bi bi-calendar-x fs-1 d-block mb-2"></i>
+                          No appointments scheduled for today
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
