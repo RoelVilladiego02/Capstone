@@ -1,0 +1,99 @@
+:root {
+  --clinica-red: #E31937;
+  --clinica-black: #000000;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.btn-primary {
+  background-color: var(--clinica-red);
+  border-color: var(--clinica-red);
+}
+
+.btn-primary:hover {
+  background-color: darkred;
+  border-color: darkred;
+}
+
+.sidebar {
+  background-color: var(--clinica-black);
+  min-height: 100vh;
+  color: white;
+}
+
+.main-content {
+  padding: 20px;
+}
+
+.dashboard-card {
+  border-left: 4px solid var(--clinica-red);
+  margin-bottom: 1rem;
+}
+
+.calendar-event {
+  background-color: var(--clinica-red);
+  color: white;
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.medical-record {
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+}
+
+.inventory-item {
+  border-bottom: 1px solid #eee;
+  padding: 10px 0;
+}
+
+.stats-card {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.prescription {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin: 10px 0;
+}
+
+/* Medical Records Styles */
+.medical-record-card {
+  transition: all 0.3s ease;
+  border-left: 4px solid var(--clinica-red);
+}
+
+.medical-record-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.vitals-badge {
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.875rem;
+}
+
+.record-timeline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: #e9ecef;
+}
