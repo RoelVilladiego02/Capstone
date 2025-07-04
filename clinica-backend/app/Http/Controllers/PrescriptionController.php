@@ -7,9 +7,19 @@ use Illuminate\Http\Request;
 
 class PrescriptionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Prescription::all();
+        $query = Prescription::query();
+        if ($request->has('patient_id')) {
+            $query->where('patient_id', $request->input('patient_id'));
+        }
+        if ($request->has('doctor_id')) {
+            $query->where('doctor_id', $request->input('doctor_id'));
+        }
+        if ($request->has('date')) {
+            $query->where('date', $request->input('date'));
+        }
+        return $query->get();
     }
 
     public function show($id)

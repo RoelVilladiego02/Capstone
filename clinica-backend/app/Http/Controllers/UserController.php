@@ -49,4 +49,9 @@ class UserController extends Controller
         User::destroy($id);
         return response()->noContent();
     }
+
+    public function doctors()
+    {
+        return User::where('role', 'Doctor')->get();
+    }
 }

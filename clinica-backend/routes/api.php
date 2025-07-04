@@ -31,15 +31,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [App\Http\Controllers\UserController::class, 'store']);
     Route::put('/users/{id}', [App\Http\Controllers\UserController::class, 'update']);
     Route::delete('/users/{id}', [App\Http\Controllers\UserController::class, 'destroy']);
+    Route::get('/doctors', [App\Http\Controllers\UserController::class, 'doctors']);
 
     // Appointments
     Route::apiResource('appointments', App\Http\Controllers\AppointmentController::class);
+    Route::post('/appointments/{id}/check-in', [App\Http\Controllers\AppointmentController::class, 'checkIn']);
+    Route::get('/doctors/{doctorId}/appointments', [App\Http\Controllers\AppointmentController::class, 'doctorAppointments']);
+    Route::get('/doctors/{doctorId}/todays-appointments', [App\Http\Controllers\AppointmentController::class, 'todaysDoctorAppointments']);
+    Route::get('/doctors/{doctorId}/teleconsultations', [App\Http\Controllers\AppointmentController::class, 'upcomingTeleconsultations']);
 
     // Patients
     Route::apiResource('patients', App\Http\Controllers\PatientController::class);
 
     // Medical Records
     Route::apiResource('medical-records', App\Http\Controllers\MedicalRecordController::class);
+    Route::post('/medical-records/session', [App\Http\Controllers\MedicalRecordController::class, 'createFromSession']);
+    Route::put('/medical-records/{id}/session', [App\Http\Controllers\MedicalRecordController::class, 'updateFromSession']);
 
     // Billing
     Route::apiResource('billing', App\Http\Controllers\BillingController::class);
@@ -62,6 +69,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/analytics/visits', [App\Http\Controllers\AnalyticsController::class, 'visits']);
     Route::get('/analytics/doctors', [App\Http\Controllers\AnalyticsController::class, 'doctors']);
     Route::get('/analytics/revenue', [App\Http\Controllers\AnalyticsController::class, 'revenue']);
+    Route::get('/analytics/todays-appointments', [App\Http\Controllers\AnalyticsController::class, 'todaysAppointments']);
+    Route::get('/analytics/check-ins-by-hour', [App\Http\Controllers\AnalyticsController::class, 'checkInsByHour']);
+    Route::get('/analytics/doctors/{doctorId}/summary', [App\Http\Controllers\AnalyticsController::class, 'doctorSummary']);
 
     // Settings
     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index']);

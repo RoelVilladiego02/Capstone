@@ -50,4 +50,71 @@ class MedicalRecordController extends Controller
         MedicalRecord::destroy($id);
         return response()->noContent();
     }
+
+    public function createFromSession(Request $request)
+    {
+        $validated = $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'doctor_id' => 'required|exists:users,id',
+            'visit_date' => 'required|date',
+            'diagnosis' => 'required|string',
+            'treatment' => 'required|string',
+            'notes' => 'nullable|string',
+            'vital_signs' => 'nullable|array',
+            'vital_signs.temperature' => 'nullable|string',
+            'vital_signs.blood_pressure' => 'nullable|string',
+            'vital_signs.heart_rate' => 'nullable|string',
+            'vital_signs.respiratory_rate' => 'nullable|string',
+            'vital_signs.oxygen_saturation' => 'nullable|string',
+            'session_notes' => 'nullable|string',
+        ]);
+
+        // Create medical record
+        $medicalRecord = MedicalRecord::create([
+            'patient_id' => $validated['patient_id'],
+            'doctor_id' => $validated['doctor_id'],
+            'visit_date' => $validated['visit_date'],
+            'diagnosis' => $validated['diagnosis'],
+            'treatment' => $validated['treatment'],
+            'notes' => $validated['notes'] . "\n\nSession Notes: " . ($validated['session_notes'] ?? ''),
+            'vital_signs' => json_encode($validated['vital_signs'] ?? []),
+            'status' => 'Active',
+        ]);
+
+        return response()->json([
+            'message' => 'Medical record created successfully',
+            'medical_record' => $medicalRecord
+        ], 201);
+    }
+
+    public function updateFromSession(Request $request, $id)
+    {
+        $medicalRecord = MedicalRecord::findOrFail($id);
+        
+        $validated = $request->validate([
+            'diagnosis' => 'sometimes|string',
+            'treatment' => 'sometimes|string',
+            'notes' => 'nullable|string',
+            'vital_signs' => 'nullable|array',
+            'vital_signs.temperature' => 'nullable|string',
+            'vital_signs.blood_pressure' => 'nullable|string',
+            'vital_signs.heart_rate' => 'nullable|string',
+            'vital_signs.respiratory_rate' => 'nullable|string',
+            'vital_signs.oxygen_saturation' => 'nullable|string',
+            'session_notes' => 'nullable|string',
+        ]);
+
+        // Update medical record
+        $medicalRecord->update([
+            'diagnosis' => $validated['diagnosis'] ?? $medicalRecord->diagnosis,
+            'treatment' => $validated['treatment'] ?? $medicalRecord->treatment,
+            'notes' => ($validated['notes'] ?? $medicalRecord->notes) . "\n\nSession Notes: " . ($validated['session_notes'] ?? ''),
+            'vital_signs' => json_encode($validated['vital_signs'] ?? json_decode($medicalRecord->vital_signs, true)),
+        ]);
+
+        return response()->json([
+            'message' => 'Medical record updated successfully',
+            'medical_record' => $medicalRecord
+        ]);
+    }
 }
