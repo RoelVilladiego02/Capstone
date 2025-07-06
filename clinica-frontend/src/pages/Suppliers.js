@@ -1,42 +1,136 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supplierService } from '../services/supplierService';
 
 const Suppliers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [formSupplier, setFormSupplier] = useState({
+    name: '',
+    contact_name: '',
+    email: '',
+    phone: '',
+    address: '',
+    category: '',
+    status: 'Active',
+    rating: 0
+  });
 
-  const suppliers = [
-    {
-      id: 1,
-      name: 'Medical Supplies Co.',
-      contactPerson: 'John Smith',
-      email: 'john@medicalsupplies.com',
-      phone: '+1234567890',
-      address: '123 Supply Street, Medical District',
-      category: 'Medical Equipment',
-      status: 'Active',
-      rating: 4.5,
-      lastOrder: '2024-02-15'
-    },
-    {
-      id: 2,
-      name: 'PharmaCare Inc.',
-      contactPerson: 'Sarah Johnson',
-      email: 'sarah@pharmacare.com',
-      phone: '+0987654321',
-      address: '456 Pharma Avenue, Health District',
-      category: 'Pharmaceuticals',
-      status: 'Active',
-      rating: 4.8,
-      lastOrder: '2024-02-10'
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const supplierList = await supplierService.getAllSuppliers();
+        setSuppliers(supplierList);
+      } catch (err) {
+        setError(err.message || 'Failed to load suppliers');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // CRUD Handlers
+  const handleAddSupplier = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const supplier = await supplierService.createSupplier(formSupplier);
+      setSuppliers([supplier, ...suppliers]);
+      setShowModal(false);
+      setFormSupplier({ name: '', contact_name: '', email: '', phone: '', address: '', category: '', status: 'Active', rating: 0 });
+    } catch (err) {
+      setError(err.message || 'Failed to add supplier');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleEditSupplier = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const updated = await supplierService.updateSupplier(selectedSupplier.id, formSupplier);
+      setSuppliers(suppliers.map(s => s.id === updated.id ? updated : s));
+      setShowModal(false);
+      setSelectedSupplier(null);
+    } catch (err) {
+      setError(err.message || 'Failed to update supplier');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSupplier = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this supplier?')) return;
+    try {
+      setLoading(true);
+      await supplierService.deleteSupplier(id);
+      setSuppliers(suppliers.filter(s => s.id !== id));
+      setShowModal(false);
+      setSelectedSupplier(null);
+    } catch (err) {
+      setError(err.message || 'Failed to delete supplier');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSupplierAction = (supplier, action) => {
-    setSelectedSupplier(supplier);
-    setShowModal(true);
+    if (action === 'add') {
+      setFormSupplier({ name: '', contact_name: '', email: '', phone: '', address: '', category: '', status: 'Active', rating: 0 });
+      setSelectedSupplier(null);
+      setShowModal(true);
+    } else if (action === 'edit') {
+      setFormSupplier({
+        name: supplier.name,
+        contact_name: supplier.contact_name,
+        email: supplier.email,
+        phone: supplier.phone,
+        address: supplier.address,
+        category: supplier.category,
+        status: supplier.status,
+        rating: supplier.rating
+      });
+      setSelectedSupplier(supplier);
+      setShowModal(true);
+    } else if (action === 'delete') {
+      handleDeleteSupplier(supplier.id);
+    } else if (action === 'view') {
+      setFormSupplier({
+        name: supplier.name,
+        contact_name: supplier.contact_name,
+        email: supplier.email,
+        phone: supplier.phone,
+        address: supplier.address,
+        category: supplier.category,
+        status: supplier.status,
+        rating: supplier.rating
+      });
+      setSelectedSupplier(supplier);
+      setShowModal(true);
+    }
   };
+
+  // Filtering
+  const filteredSuppliers = suppliers.filter(supplier => {
+    const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.email && supplier.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus = filterStatus === 'all' || supplier.status.toLowerCase() === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  if (loading) {
+    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+  }
+  if (error) {
+    return <div className="alert alert-danger my-4">{error}</div>;
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -100,7 +194,7 @@ const Suppliers = () => {
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map(supplier => (
+                {filteredSuppliers.map(supplier => (
                   <tr key={supplier.id}>
                     <td>
                       <div className="d-flex align-items-center">
@@ -116,7 +210,7 @@ const Suppliers = () => {
                         </div>
                       </div>
                     </td>
-                    <td>{supplier.contactPerson}</td>
+                    <td>{supplier.contact_name}</td>
                     <td>{supplier.category}</td>
                     <td>
                       <span className={`badge ${supplier.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>
@@ -128,12 +222,12 @@ const Suppliers = () => {
                         <span className="me-2">{supplier.rating}</span>
                         <div className="text-warning">
                           {[...Array(5)].map((_, index) => (
-                            <i key={index} className={`bi bi-star${index < supplier.rating ? '-fill' : ''}`}></i>
+                            <i key={index} className={`bi bi-star${index < Math.round(supplier.rating) ? '-fill' : ''}`}></i>
                           ))}
                         </div>
                       </div>
                     </td>
-                    <td>{new Date(supplier.lastOrder).toLocaleDateString()}</td>
+                    <td>{supplier.last_order_date ? new Date(supplier.last_order_date).toLocaleDateString() : 'N/A'}</td>
                     <td>
                       <div className="btn-group">
                         <button 
@@ -158,6 +252,17 @@ const Suppliers = () => {
                     </td>
                   </tr>
                 ))}
+                {filteredSuppliers.length === 0 && (
+                  <tr>
+                    <td colSpan="7" className="text-center py-4">
+                      <div className="py-5">
+                        <i className="bi bi-inbox fs-1 text-muted"></i>
+                        <h5 className="mt-3">No suppliers found</h5>
+                        <p className="text-muted">Try adjusting your search or filters</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -176,31 +281,34 @@ const Suppliers = () => {
                 <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
               </div>
               <div className="modal-body">
-                <form>
+                <form onSubmit={selectedSupplier ? handleEditSupplier : handleAddSupplier}>
                   <div className="row g-3">
                     <div className="col-md-6">
                       <label className="form-label">Supplier Name</label>
                       <input 
                         type="text" 
                         className="form-control"
-                        defaultValue={selectedSupplier?.name}
+                        required
+                        value={formSupplier.name}
+                        onChange={e => setFormSupplier({ ...formSupplier, name: e.target.value })}
                       />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Category</label>
-                      <select className="form-select" defaultValue={selectedSupplier?.category}>
-                        <option>Medical Equipment</option>
-                        <option>Pharmaceuticals</option>
-                        <option>Laboratory Supplies</option>
-                        <option>Office Supplies</option>
-                      </select>
+                      <input 
+                        type="text" 
+                        className="form-control"
+                        value={formSupplier.category}
+                        onChange={e => setFormSupplier({ ...formSupplier, category: e.target.value })}
+                      />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Contact Person</label>
                       <input 
                         type="text" 
                         className="form-control"
-                        defaultValue={selectedSupplier?.contactPerson}
+                        value={formSupplier.contact_name}
+                        onChange={e => setFormSupplier({ ...formSupplier, contact_name: e.target.value })}
                       />
                     </div>
                     <div className="col-md-6">
@@ -208,7 +316,8 @@ const Suppliers = () => {
                       <input 
                         type="email" 
                         className="form-control"
-                        defaultValue={selectedSupplier?.email}
+                        value={formSupplier.email}
+                        onChange={e => setFormSupplier({ ...formSupplier, email: e.target.value })}
                       />
                     </div>
                     <div className="col-md-6">
@@ -216,38 +325,50 @@ const Suppliers = () => {
                       <input 
                         type="tel" 
                         className="form-control"
-                        defaultValue={selectedSupplier?.phone}
+                        value={formSupplier.phone}
+                        onChange={e => setFormSupplier({ ...formSupplier, phone: e.target.value })}
                       />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Status</label>
-                      <select className="form-select" defaultValue={selectedSupplier?.status}>
-                        <option>Active</option>
-                        <option>Inactive</option>
+                      <select className="form-select" value={formSupplier.status} onChange={e => setFormSupplier({ ...formSupplier, status: e.target.value })}>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
                       </select>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Rating</label>
+                      <input 
+                        type="number" 
+                        className="form-control"
+                        min="0" max="5" step="0.1"
+                        value={formSupplier.rating}
+                        onChange={e => setFormSupplier({ ...formSupplier, rating: e.target.value })}
+                      />
                     </div>
                     <div className="col-12">
                       <label className="form-label">Address</label>
                       <textarea 
                         className="form-control" 
                         rows="3"
-                        defaultValue={selectedSupplier?.address}
+                        value={formSupplier.address}
+                        onChange={e => setFormSupplier({ ...formSupplier, address: e.target.value })}
                       ></textarea>
                     </div>
                   </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="btn"
+                      style={{ backgroundColor: '#E31937', color: 'white' }}
+                    >
+                      {selectedSupplier ? 'Update Supplier' : 'Add Supplier'}
+                    </button>
+                  </div>
                 </form>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className="btn"
-                  style={{ backgroundColor: '#E31937', color: 'white' }}
-                >
-                  {selectedSupplier ? 'Update Supplier' : 'Add Supplier'}
-                </button>
               </div>
             </div>
           </div>

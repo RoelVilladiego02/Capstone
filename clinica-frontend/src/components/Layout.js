@@ -22,7 +22,7 @@ const Layout = () => {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Check on first render
+    handleResize();
     
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarCollapsed]);
@@ -37,11 +37,21 @@ const Layout = () => {
   };
 
   const toggleMenu = (menuKey) => {
+    // Prevent menu toggle when sidebar is collapsed
+    if (sidebarCollapsed) return;
+    
     setExpandedMenus(prev => ({
       ...prev,
       [menuKey]: !prev[menuKey]
     }));
   };
+
+  // Close all expanded menus when sidebar collapses
+  useEffect(() => {
+    if (sidebarCollapsed) {
+      setExpandedMenus({});
+    }
+  }, [sidebarCollapsed]);
 
   const getNavigationItems = (role) => {
     switch(role) {
@@ -62,7 +72,6 @@ const Layout = () => {
           },
           { to: '/doctor-schedules', label: 'Doctor Appointments', icon: 'bi-calendar-check' },
           { to: '/inventory', label: 'Inventory', icon: 'bi-box-seam' },
-          // { to: '/billing', label: 'Billing', icon: 'bi-receipt' },
           {
             key: 'analytics',
             label: 'Reports & Analytics',
@@ -76,6 +85,7 @@ const Layout = () => {
             ]
           },
           { 
+            key: 'settings',
             to: '/settings', 
             label: 'Settings', 
             icon: 'bi-gear',
@@ -146,34 +156,86 @@ const Layout = () => {
   };
 
   useEffect(() => {
-    // Automatically expand menu if current path matches any submenu item
-    const currentPath = location.pathname;
-    getNavigationItems(currentUser?.role).forEach(item => {
-      if (item.children && item.children.some(child => currentPath.startsWith(child.to))) {
-        setExpandedMenus(prev => ({ ...prev, [item.key]: true }));
-      }
-    });
-  }, [location.pathname, currentUser?.role]);
+    // Only auto-expand menus if sidebar is not collapsed
+    if (!sidebarCollapsed) {
+      const currentPath = location.pathname;
+      getNavigationItems(currentUser?.role).forEach(item => {
+        if (item.children && item.children.some(child => currentPath.startsWith(child.to))) {
+          setExpandedMenus(prev => ({ ...prev, [item.key]: true }));
+        }
+      });
+    }
+  }, [location.pathname, currentUser?.role, sidebarCollapsed]);
 
-  const NavLink = ({ to, label, icon, isActive }) => {
+  const NavLink = ({ to, label, icon, isActive, isCollapsed }) => {
+    const handleClick = (e) => {
+      // If collapsed and has children, expand sidebar instead of navigating
+      if (isCollapsed) {
+        e.preventDefault();
+        setSidebarCollapsed(false);
+        return;
+      }
+    };
+
     return (
       <Link 
         to={to} 
         className={`nav-link d-flex align-items-center ${isActive ? 'active' : ''}`}
+        onClick={handleClick}
         style={{
           color: 'white',
           backgroundColor: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
           borderRadius: '8px',
           margin: '4px 0',
-          padding: sidebarCollapsed ? '12px 8px' : '10px 16px',
+          padding: isCollapsed ? '12px 8px' : '10px 16px',
           transition: 'all 0.2s ease-in-out',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          textOverflow: 'ellipsis',
+          position: 'relative'
         }}
+        title={isCollapsed ? label : ''}
       >
-        <i className={`bi ${icon} ${sidebarCollapsed ? '' : 'me-3'}`} style={{ fontSize: '1.1rem' }}></i>
-        <span className={sidebarCollapsed ? 'd-none' : 'd-block'}>{label}</span>
+        <i className={`bi ${icon} ${isCollapsed ? '' : 'me-3'}`} style={{ fontSize: '1.1rem' }}></i>
+        <span className={isCollapsed ? 'd-none' : 'd-block'}>{label}</span>
+        {isCollapsed && (
+          <div 
+            className="tooltip-popup"
+            style={{
+              position: 'absolute',
+              left: '100%',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              color: 'white',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              whiteSpace: 'nowrap',
+              marginLeft: '10px',
+              opacity: 0,
+              visibility: 'hidden',
+              transition: 'all 0.2s ease',
+              zIndex: 1000,
+              pointerEvents: 'none'
+            }}
+          >
+            {label}
+            <div 
+              style={{
+                position: 'absolute',
+                right: '100%',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 0,
+                height: 0,
+                borderTop: '5px solid transparent',
+                borderBottom: '5px solid transparent',
+                borderRight: '5px solid rgba(0, 0, 0, 0.8)'
+              }}
+            />
+          </div>
+        )}
       </Link>
     );
   };
@@ -182,19 +244,30 @@ const Layout = () => {
     const isActive = isPathActive(item.to) || isSubmenuActive(item);
     const isExpanded = expandedMenus[item.key];
     
+    const handleSubmenuClick = (e) => {
+      if (sidebarCollapsed) {
+        e.preventDefault();
+        setSidebarCollapsed(false);
+        return;
+      }
+      toggleMenu(item.key);
+    };
+    
     return (
       <div className="nav-item">
         <div 
           className={`nav-link d-flex align-items-center justify-content-between ${isActive ? 'active' : ''}`}
-          onClick={() => !sidebarCollapsed && toggleMenu(item.key)}
+          onClick={handleSubmenuClick}
           style={{
             color: 'white',
             backgroundColor: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
             borderRadius: '8px',
             margin: '4px 0',
             padding: '10px 16px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            position: 'relative'
           }}
+          title={sidebarCollapsed ? item.label : ''}
         >
           <div className="d-flex align-items-center">
             <i className={`bi ${item.icon} ${sidebarCollapsed ? '' : 'me-3'}`} style={{ fontSize: '1.1rem' }}></i>
@@ -203,10 +276,49 @@ const Layout = () => {
           {!sidebarCollapsed && (
             <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} ms-2`}></i>
           )}
+          
+          {sidebarCollapsed && (
+            <div 
+              className="tooltip-popup"
+              style={{
+                position: 'absolute',
+                left: '100%',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+                marginLeft: '10px',
+                opacity: 0,
+                visibility: 'hidden',
+                transition: 'all 0.2s ease',
+                zIndex: 1000,
+                pointerEvents: 'none'
+              }}
+            >
+              {item.label}
+              <div 
+                style={{
+                  position: 'absolute',
+                  right: '100%',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderTop: '5px solid transparent',
+                  borderBottom: '5px solid transparent',
+                  borderRight: '5px solid rgba(0, 0, 0, 0.8)'
+                }}
+              />
+            </div>
+          )}
         </div>
         
         {!sidebarCollapsed && isExpanded && (
-          <div className="submenu ps-4">
+          <div className="submenu ps-4" style={{ maxHeight: '300px', overflowY: 'auto' }}>
             {item.children.map((child, idx) => (
               <Link
                 key={idx}
@@ -219,7 +331,8 @@ const Layout = () => {
                   padding: '8px 16px',
                   fontSize: '0.9rem',
                   display: 'flex',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  transition: 'all 0.2s ease'
                 }}
               >
                 <i className="bi bi-dot me-2"></i>
@@ -274,7 +387,7 @@ const Layout = () => {
         }}
       >
         <div className="sidebar-content p-3">
-          {/* Logo & Brand - Simplified */}
+          {/* Logo & Brand */}
           <div className="d-flex align-items-center mb-4 mt-2 justify-content-between">
             <div className="d-flex align-items-center">
               <img 
@@ -287,7 +400,6 @@ const Layout = () => {
                   transition: 'all 0.3s ease'
                 }} 
               />
-              {/* Remove the redundant text logo */}
             </div>
             {!isMobile && (
               <button 
@@ -307,7 +419,7 @@ const Layout = () => {
             )}
           </div>
 
-          {/* User Profile - Enhanced */}
+          {/* User Profile */}
           <div 
             className="user-profile mb-4 p-3 rounded" 
             style={{ 
@@ -340,7 +452,7 @@ const Layout = () => {
             </div>
           </div>
 
-          {/* Navigation Items - With Active Indicator */}
+          {/* Navigation Items */}
           <div className="navigation-menu">
             <ul className="nav flex-column p-0">
               {getNavigationItems(currentUser?.role).map((item, index) => (
@@ -368,6 +480,7 @@ const Layout = () => {
                       label={item.label} 
                       icon={item.icon}
                       isActive={isPathActive(item.to)}
+                      isCollapsed={sidebarCollapsed}
                     />
                   )}
                 </li>
@@ -375,7 +488,7 @@ const Layout = () => {
             </ul>
           </div>
 
-          {/* Mobile toggle button */}
+          {/* Mobile close button */}
           {isMobile && !sidebarCollapsed && (
             <button 
               className="btn btn-sm btn-light position-absolute d-flex align-items-center justify-content-center"
@@ -393,7 +506,7 @@ const Layout = () => {
             </button>
           )}
           
-          {/* Logout Button - Enhanced */}
+          {/* Logout Button */}
           <div className="mt-auto pt-4">
             <button 
               onClick={handleLogout} 
@@ -406,6 +519,7 @@ const Layout = () => {
                 transition: 'all 0.2s ease',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
               }}
+              title={sidebarCollapsed ? 'Logout' : ''}
             >
               <i className={`bi bi-box-arrow-right ${sidebarCollapsed ? '' : 'me-2'}`}></i>
               <span className={sidebarCollapsed ? 'd-none' : 'd-block'}>Logout</span>
@@ -472,6 +586,11 @@ const Layout = () => {
             transform: translateX(3px);
           }
           
+          .nav-link:hover .tooltip-popup {
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
+          
           .sidebar {
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.3) transparent;
@@ -505,7 +624,6 @@ const Layout = () => {
             }
           }
           
-          /* Added styles for better visual cues */
           .nav-link {
             position: relative;
             overflow: visible !important;
@@ -533,6 +651,14 @@ const Layout = () => {
             width: 80%;
             left: 10%;
             opacity: 1;
+          }
+          
+          .sidebar.collapsed .nav-link {
+            justify-content: center;
+          }
+          
+          .sidebar.collapsed .submenu {
+            display: none;
           }
         `}
       </style>

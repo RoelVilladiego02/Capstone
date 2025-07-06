@@ -1,36 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { orderService } from '../services/orderService';
+import { supplierService } from '../services/supplierService';
+import { inventoryService } from '../services/inventoryService';
 
 const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [newOrder, setNewOrder] = useState({
+    supplier_id: '',
+    inventory_item_id: '',
+    quantity: '',
+    order_date: '',
+    status: 'Pending',
+    priority: 'Medium',
+    expected_delivery: ''
+  });
 
-  const orders = [
-    {
-      id: 'PO-2024-001',
-      date: '2024-02-15',
-      supplier: 'Medical Supplies Co.',
-      items: [
-        { name: 'Surgical Masks', quantity: 1000, price: 5 },
-        { name: 'Gloves', quantity: 500, price: 10 }
-      ],
-      total: 10000,
-      status: 'Pending',
-      priority: 'High'
-    },
-    {
-      id: 'PO-2024-002',
-      date: '2024-02-14',
-      supplier: 'PharmaCare Inc.',
-      items: [
-        { name: 'Syringes', quantity: 200, price: 15 }
-      ],
-      total: 3000,
-      status: 'Approved',
-      priority: 'Medium'
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [orderList, supplierList, itemList] = await Promise.all([
+          orderService.getAllOrders(),
+          supplierService.getAllSuppliers(),
+          inventoryService.getAllItems()
+        ]);
+        setOrders(orderList);
+        setSuppliers(supplierList);
+        setInventoryItems(itemList);
+      } catch (err) {
+        setError(err.message || 'Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // CRUD Handlers
+  const handleCreateOrder = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const order = await orderService.createOrder({
+        ...newOrder,
+        quantity: parseInt(newOrder.quantity),
+        order_date: newOrder.order_date || new Date().toISOString().split('T')[0]
+      });
+      setOrders([order, ...orders]);
+      setShowOrderModal(false);
+      setNewOrder({
+        supplier_id: '', inventory_item_id: '', quantity: '', order_date: '', status: 'Pending', priority: 'Medium', expected_delivery: ''
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to create order');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleViewOrder = (order) => {
+    setSelectedOrder(order);
+    setShowOrderModal(true);
+  };
+
+  const handleApproveOrder = async (id) => {
+    try {
+      setLoading(true);
+      const updated = await orderService.approveOrder(id);
+      setOrders(orders.map(o => o.id === updated.id ? updated : o));
+      setSelectedOrder(updated);
+    } catch (err) {
+      setError(err.message || 'Failed to approve order');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtering
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.inventory_item?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.id + '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || order.status.toLowerCase() === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   const getStatusBadgeClass = (status) => {
     switch(status) {
@@ -42,10 +103,12 @@ const Orders = () => {
     }
   };
 
-  const handleViewOrder = (order) => {
-    setSelectedOrder(order);
-    setShowOrderModal(true);
-  };
+  if (loading) {
+    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+  }
+  if (error) {
+    return <div className="alert alert-danger my-4">{error}</div>;
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -57,7 +120,7 @@ const Orders = () => {
         <button 
           className="btn" 
           style={{ backgroundColor: '#E31937', color: 'white' }}
-          onClick={() => setShowOrderModal(true)}
+          onClick={() => { setShowOrderModal(true); setSelectedOrder(null); }}
         >
           <i className="bi bi-plus-lg me-2"></i>New Order
         </button>
@@ -104,19 +167,21 @@ const Orders = () => {
                   <th>Order ID</th>
                   <th>Date</th>
                   <th>Supplier</th>
-                  <th>Total</th>
+                  <th>Item</th>
+                  <th>Quantity</th>
                   <th>Status</th>
                   <th>Priority</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map(order => (
+                {filteredOrders.map(order => (
                   <tr key={order.id}>
                     <td>{order.id}</td>
-                    <td>{new Date(order.date).toLocaleDateString()}</td>
-                    <td>{order.supplier}</td>
-                    <td>₱{order.total.toLocaleString()}</td>
+                    <td>{order.order_date ? new Date(order.order_date).toLocaleDateString() : ''}</td>
+                    <td>{order.supplier?.name || 'N/A'}</td>
+                    <td>{order.inventory_item?.name || 'N/A'}</td>
+                    <td>{order.quantity}</td>
                     <td>
                       <span className={`badge ${getStatusBadgeClass(order.status)}`}>
                         {order.status}
@@ -138,13 +203,24 @@ const Orders = () => {
                         View Details
                       </button>
                       {order.status === 'Pending' && (
-                        <button className="btn btn-sm btn-outline-success">
+                        <button className="btn btn-sm btn-outline-success" onClick={() => handleApproveOrder(order.id)}>
                           Approve
                         </button>
                       )}
                     </td>
                   </tr>
                 ))}
+                {filteredOrders.length === 0 && (
+                  <tr>
+                    <td colSpan="8" className="text-center py-4">
+                      <div className="py-5">
+                        <i className="bi bi-inbox fs-1 text-muted"></i>
+                        <h5 className="mt-3">No orders found</h5>
+                        <p className="text-muted">Try adjusting your search or filters</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -174,8 +250,8 @@ const Orders = () => {
                   <>
                     <div className="row mb-4">
                       <div className="col-md-6">
-                        <p className="mb-1"><strong>Supplier:</strong> {selectedOrder.supplier}</p>
-                        <p className="mb-1"><strong>Date:</strong> {selectedOrder.date}</p>
+                        <p className="mb-1"><strong>Supplier:</strong> {selectedOrder.supplier?.name || 'N/A'}</p>
+                        <p className="mb-1"><strong>Date:</strong> {selectedOrder.order_date ? new Date(selectedOrder.order_date).toLocaleDateString() : ''}</p>
                         <p className="mb-1">
                           <strong>Status:</strong> 
                           <span className={`badge ${getStatusBadgeClass(selectedOrder.status)} ms-2`}>
@@ -193,84 +269,61 @@ const Orders = () => {
                             {selectedOrder.priority}
                           </span>
                         </p>
+                        <p className="mb-1"><strong>Expected Delivery:</strong> {selectedOrder.expected_delivery ? new Date(selectedOrder.expected_delivery).toLocaleDateString() : 'N/A'}</p>
                       </div>
                     </div>
-
-                    <div className="table-responsive">
-                      <table className="table">
-                        <thead>
-                          <tr>
-                            <th>Item</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedOrder.items.map((item, index) => (
-                            <tr key={index}>
-                              <td>{item.name}</td>
-                              <td>{item.quantity}</td>
-                              <td>₱{item.price}</td>
-                              <td>₱{(item.quantity * item.price).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr>
-                            <td colSpan="3" className="text-end"><strong>Total:</strong></td>
-                            <td><strong>₱{selectedOrder.total.toLocaleString()}</strong></td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                    <div className="row mb-4">
+                      <div className="col-md-6">
+                        <p className="mb-1"><strong>Item:</strong> {selectedOrder.inventory_item?.name || 'N/A'}</p>
+                        <p className="mb-1"><strong>Quantity:</strong> {selectedOrder.quantity}</p>
+                        <p className="mb-1"><strong>Price per Unit:</strong> ₱{selectedOrder.inventory_item?.price || 'N/A'}</p>
+                        <p className="mb-1"><strong>Total:</strong> ₱{selectedOrder.quantity && selectedOrder.inventory_item?.price ? (selectedOrder.quantity * selectedOrder.inventory_item.price).toLocaleString() : 'N/A'}</p>
+                      </div>
                     </div>
                   </>
                 ) : (
-                  <form>
-                    {/* New Order Form Fields */}
+                  <form onSubmit={handleCreateOrder}>
                     <div className="mb-3">
                       <label className="form-label">Supplier</label>
-                      <select className="form-select">
+                      <select className="form-select" required value={newOrder.supplier_id} onChange={e => setNewOrder({ ...newOrder, supplier_id: e.target.value })}>
                         <option value="">Select supplier</option>
-                        <option>Medical Supplies Co.</option>
-                        <option>PharmaCare Inc.</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
                       </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Item</label>
+                      <select className="form-select" required value={newOrder.inventory_item_id} onChange={e => setNewOrder({ ...newOrder, inventory_item_id: e.target.value })}>
+                        <option value="">Select item</option>
+                        {inventoryItems.map(i => (
+                          <option key={i.id} value={i.id}>{i.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Quantity</label>
+                      <input type="number" className="form-control" required value={newOrder.quantity} onChange={e => setNewOrder({ ...newOrder, quantity: e.target.value })} />
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Priority</label>
-                      <select className="form-select">
-                        <option>High</option>
-                        <option>Medium</option>
-                        <option>Low</option>
+                      <select className="form-select" value={newOrder.priority} onChange={e => setNewOrder({ ...newOrder, priority: e.target.value })}>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                       </select>
                     </div>
                     <div className="mb-3">
-                      <label className="form-label">Items</label>
-                      <table className="table table-sm">
-                        <thead>
-                          <tr>
-                            <th>Item</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td><input type="text" className="form-control form-control-sm" /></td>
-                            <td><input type="number" className="form-control form-control-sm" /></td>
-                            <td><input type="number" className="form-control form-control-sm" /></td>
-                            <td>
-                              <button type="button" className="btn btn-sm btn-outline-danger">
-                                <i className="bi bi-trash"></i>
-                              </button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      <button type="button" className="btn btn-sm btn-outline-primary">
-                        <i className="bi bi-plus-lg me-2"></i>Add Item
-                      </button>
+                      <label className="form-label">Expected Delivery</label>
+                      <input type="date" className="form-control" value={newOrder.expected_delivery} onChange={e => setNewOrder({ ...newOrder, expected_delivery: e.target.value })} />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Order Date</label>
+                      <input type="date" className="form-control" value={newOrder.order_date} onChange={e => setNewOrder({ ...newOrder, order_date: e.target.value })} />
+                    </div>
+                    <div className="text-end">
+                      <button type="button" className="btn btn-secondary me-2" onClick={() => setShowOrderModal(false)}>Cancel</button>
+                      <button type="submit" className="btn" style={{ backgroundColor: '#E31937', color: 'white' }}>Create Order</button>
                     </div>
                   </form>
                 )}
@@ -286,23 +339,14 @@ const Orders = () => {
                 >
                   Close
                 </button>
-                {selectedOrder ? (
-                  selectedOrder.status === 'Pending' && (
-                    <button 
-                      type="button" 
-                      className="btn"
-                      style={{ backgroundColor: '#E31937', color: 'white' }}
-                    >
-                      Approve Order
-                    </button>
-                  )
-                ) : (
+                {selectedOrder && selectedOrder.status === 'Pending' && (
                   <button 
-                    type="submit" 
+                    type="button" 
                     className="btn"
                     style={{ backgroundColor: '#E31937', color: 'white' }}
+                    onClick={() => handleApproveOrder(selectedOrder.id)}
                   >
-                    Create Order
+                    Approve Order
                   </button>
                 )}
               </div>

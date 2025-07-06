@@ -1,23 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { inventoryService } from '../services/inventoryService';
+import { supplierService } from '../services/supplierService';
 
 const Inventory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStock, setFilterStock] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newItem, setNewItem] = useState({
-    name: '',
-    category: '',
-    quantity: '',
-    unit: '',
-    minStock: '',
-    price: '',
-    supplier: ''
-  });
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedItem, setEditedItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [newItem, setNewItem] = useState({
+    name: '',
+    description: '',
+    quantity: '',
+    unit: '',
+    price: '',
+    threshold: '',
+    category: '',
+    location: '',
+    supplier_id: ''
+  });
 
   const categories = [
     'All Categories',
@@ -28,134 +36,47 @@ const Inventory = () => {
     'Office Supplies'
   ];
 
-  // Mock data for inventory items
-  const inventoryItems = [
-    {
-      id: 1,
-      name: 'Surgical Masks',
-      category: 'Medical Supplies',
-      quantity: 2500,
-      unit: 'pieces',
-      minStock: 1000,
-      lastUpdated: '2024-02-15',
-      status: 'In Stock',
-      price: 0.50,
-      supplier: 'Medical Supplies Co.',
-      location: 'Storage A1'
-    },
-    {
-      id: 2,
-      name: 'Amoxicillin 500mg',
-      category: 'Medications',
-      quantity: 350,
-      unit: 'tablets',
-      minStock: 200,
-      lastUpdated: '2024-02-14',
-      status: 'In Stock',
-      price: 1.25,
-      supplier: 'PharmaCare Inc.',
-      location: 'Pharmacy B2'
-    },
-    {
-      id: 3,
-      name: 'Blood Pressure Monitor',
-      category: 'Equipment',
-      quantity: 15,
-      unit: 'units',
-      minStock: 5,
-      lastUpdated: '2024-02-13',
-      status: 'In Stock',
-      price: 89.99,
-      supplier: 'MedEquip Ltd.',
-      location: 'Equipment Room C1'
-    },
-    {
-      id: 4,
-      name: 'Disposable Gloves',
-      category: 'Medical Supplies',
-      quantity: 50,
-      unit: 'boxes',
-      minStock: 100,
-      lastUpdated: '2024-02-15',
-      status: 'Low Stock',
-      price: 12.99,
-      supplier: 'Safety Supplies Inc.',
-      location: 'Storage A2'
-    },
-    {
-      id: 5,
-      name: 'Paracetamol 500mg',
-      category: 'Medications',
-      quantity: 1000,
-      unit: 'tablets',
-      minStock: 300,
-      lastUpdated: '2024-02-12',
-      status: 'In Stock',
-      price: 0.75,
-      supplier: 'PharmaCare Inc.',
-      location: 'Pharmacy B1'
-    },
-    {
-      id: 6,
-      name: 'Syringes 5ml',
-      category: 'Medical Supplies',
-      quantity: 0,
-      unit: 'boxes',
-      minStock: 50,
-      lastUpdated: '2024-02-11',
-      status: 'Out of Stock',
-      price: 15.99,
-      supplier: 'Medical Supplies Co.',
-      location: 'Storage A3'
-    },
-    {
-      id: 7,
-      name: 'Stethoscope',
-      category: 'Equipment',
-      quantity: 8,
-      unit: 'units',
-      minStock: 3,
-      lastUpdated: '2024-02-10',
-      status: 'In Stock',
-      price: 129.99,
-      supplier: 'MedEquip Ltd.',
-      location: 'Equipment Room C2'
-    },
-    {
-      id: 8,
-      name: 'Bandages',
-      category: 'Medical Supplies',
-      quantity: 75,
-      unit: 'rolls',
-      minStock: 100,
-      lastUpdated: '2024-02-15',
-      status: 'Low Stock',
-      price: 5.99,
-      supplier: 'Safety Supplies Inc.',
-      location: 'Storage A4'
-    }
-  ];
-
-  const handleAddItem = (e) => {
-    e.preventDefault();
-    const newInventoryItem = {
-      id: inventoryItems.length + 1,
-      ...newItem,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      status: parseInt(newItem.quantity) === 0 ? 'Out of Stock' :
-             parseInt(newItem.quantity) <= parseInt(newItem.minStock) ? 'Low Stock' : 'In Stock'
+  // Fetch inventory and suppliers
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [items, supplierList] = await Promise.all([
+          inventoryService.getAllItems(),
+          supplierService.getAllSuppliers()
+        ]);
+        setInventoryItems(items);
+        setSuppliers(supplierList);
+      } catch (err) {
+        setError(err.message || 'Failed to load inventory data');
+      } finally {
+        setLoading(false);
+      }
     };
-    inventoryItems.unshift(newInventoryItem);
-    setShowAddModal(false);
-    setNewItem({
-      name: '',
-      category: '',
-      quantity: '',
-      unit: '',
-      minStock: '',
-      price: '',
-      supplier: ''
-    });
+    fetchData();
+  }, []);
+
+  // CRUD Handlers
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const item = await inventoryService.createItem({
+        ...newItem,
+        quantity: parseInt(newItem.quantity),
+        price: parseFloat(newItem.price),
+        threshold: parseInt(newItem.threshold)
+      });
+      setInventoryItems([item, ...inventoryItems]);
+      setShowAddModal(false);
+      setNewItem({
+        name: '', description: '', quantity: '', unit: '', price: '', threshold: '', category: '', location: '', supplier_id: ''
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to add item');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewDetails = (item) => {
@@ -169,34 +90,60 @@ const Inventory = () => {
     setIsEditing(true);
   };
 
-  const handleSaveEdit = () => {
-    // Update the item in the inventory
-    const updatedInventory = inventoryItems.map(item => 
-      item.id === editedItem.id ? editedItem : item
-    );
-    // In a real app, you would make an API call here
-    inventoryItems.splice(0, inventoryItems.length, ...updatedInventory);
-    setSelectedItem(editedItem);
-    setIsEditing(false);
+  const handleSaveEdit = async () => {
+    try {
+      setLoading(true);
+      const updated = await inventoryService.updateItem(editedItem.id, {
+        ...editedItem,
+        quantity: parseInt(editedItem.quantity),
+        price: parseFloat(editedItem.price),
+        threshold: parseInt(editedItem.threshold)
+      });
+      setInventoryItems(inventoryItems.map(item => item.id === updated.id ? updated : item));
+      setSelectedItem(updated);
+      setIsEditing(false);
+    } catch (err) {
+      setError(err.message || 'Failed to update item');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Filter function
-  const filterInventoryItems = () => {
-    return inventoryItems.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.category.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
-      const matchesStock = filterStock === 'all' || 
-                          (filterStock === 'lowStock' && item.quantity <= item.minStock) ||
-                          (filterStock === 'outOfStock' && item.quantity === 0) ||
-                          (filterStock === 'inStock' && item.quantity > item.minStock);
-      
-      return matchesSearch && matchesCategory && matchesStock;
-    });
+  const handleDeleteItem = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    try {
+      setLoading(true);
+      await inventoryService.deleteItem(id);
+      setInventoryItems(inventoryItems.filter(item => item.id !== id));
+      setShowDetailsModal(false);
+    } catch (err) {
+      setError(err.message || 'Failed to delete item');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Add this before return statement
-  const filteredItems = filterInventoryItems();
+  // Filtering
+  const filteredItems = inventoryItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
+    let status = 'In Stock';
+    if (item.quantity === 0) status = 'Out of Stock';
+    else if (item.quantity <= item.threshold) status = 'Low Stock';
+    const matchesStock = filterStock === 'all' ||
+      (filterStock === 'lowStock' && status === 'Low Stock') ||
+      (filterStock === 'outOfStock' && status === 'Out of Stock') ||
+      (filterStock === 'inStock' && status === 'In Stock');
+    return matchesSearch && matchesCategory && matchesStock;
+  });
+
+  if (loading) {
+    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+  }
+  if (error) {
+    return <div className="alert alert-danger my-4">{error}</div>;
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -215,112 +162,57 @@ const Inventory = () => {
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="row g-3 mb-4">
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Total Items</h6>
-                  <h3 className="mb-0">1,234</h3>
-                </div>
-                <div className="rounded-circle p-3" style={{ backgroundColor: 'rgba(227, 25, 55, 0.1)' }}>
-                  <i className="bi bi-box-seam" style={{ fontSize: '1.5rem', color: '#E31937' }}></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Low Stock Items</h6>
-                  <h3 className="mb-0">12</h3>
-                </div>
-                <div className="rounded-circle p-3" style={{ backgroundColor: '#fff3cd' }}>
-                  <i className="bi bi-exclamation-triangle" style={{ fontSize: '1.5rem', color: '#ffc107' }}></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Out of Stock</h6>
-                  <h3 className="mb-0">5</h3>
-                </div>
-                <div className="rounded-circle p-3" style={{ backgroundColor: '#f8d7da' }}>
-                  <i className="bi bi-x-circle" style={{ fontSize: '1.5rem', color: '#dc3545' }}></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Categories</h6>
-                  <h3 className="mb-0">6</h3>
-                </div>
-                <div className="rounded-circle p-3" style={{ backgroundColor: '#d1e7dd' }}>
-                  <i className="bi bi-grid" style={{ fontSize: '1.5rem', color: '#198754' }}></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters and Search */}
+      {/* Search and Filter Section */}
       <div className="card border-0 shadow-sm mb-4">
         <div className="card-body">
           <div className="row g-3">
             <div className="col-md-4">
-              <div className="input-group">
-                <span className="input-group-text bg-light border-end-0">
-                  <i className="bi bi-search text-muted"></i>
-                </span>
-                <input
-                  type="text"
-                  className="form-control border-start-0"
-                  placeholder="Search items..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+              <label className="form-label">Search Items</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search by name or category..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <div className="col-md-4">
-              <select 
+            <div className="col-md-3">
+              <label className="form-label">Category</label>
+              <select
                 className="form-select"
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
               >
-                {categories.map((category, index) => (
-                  <option key={index} value={category.toLowerCase()}>
-                    {category}
-                  </option>
+                <option value="all">All Categories</option>
+                {categories.slice(1).map(category => (
+                  <option key={category} value={category}>{category}</option>
                 ))}
               </select>
             </div>
-            <div className="col-md-4">
-              <select 
+            <div className="col-md-3">
+              <label className="form-label">Stock Status</label>
+              <select
                 className="form-select"
                 value={filterStock}
                 onChange={(e) => setFilterStock(e.target.value)}
               >
-                <option value="all">All Stock Levels</option>
+                <option value="all">All Items</option>
                 <option value="inStock">In Stock</option>
                 <option value="lowStock">Low Stock</option>
                 <option value="outOfStock">Out of Stock</option>
               </select>
+            </div>
+            <div className="col-md-2 d-flex align-items-end">
+              <button
+                className="btn btn-outline-secondary w-100"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterCategory('all');
+                  setFilterStock('all');
+                }}
+              >
+                <i className="bi bi-arrow-clockwise me-1"></i>Reset
+              </button>
             </div>
           </div>
         </div>
@@ -336,67 +228,38 @@ const Inventory = () => {
                   <th>Item Name</th>
                   <th>Category</th>
                   <th>Quantity</th>
-                  <th>Status</th>
-                  <th>Last Updated</th>
+                  <th>Unit</th>
+                  <th>Price</th>
+                  <th>Threshold</th>
+                  <th>Supplier</th>
+                  <th>Location</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {inventoryItems.map(item => (
+                {filteredItems.map(item => (
                   <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td>{item.category}</td>
+                    <td>{item.quantity}</td>
+                    <td>{item.unit}</td>
+                    <td>₱{item.price}</td>
+                    <td>{item.threshold}</td>
+                    <td>{item.supplier?.name || 'N/A'}</td>
+                    <td>{item.location}</td>
                     <td>
-                      <div className="d-flex align-items-center">
-                        <div className="avatar me-3">
-                          <div className="rounded-circle bg-light d-flex align-items-center justify-content-center" 
-                               style={{ width: '40px', height: '40px' }}>
-                            <i className="bi bi-box text-muted"></i>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="fw-medium">{item.name}</div>
-                          <small className="text-muted">Min. Stock: {item.minStock}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="badge bg-light text-dark">
-                        {item.category}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <div className="me-2">{item.quantity} {item.unit}</div>
-                        <div className="progress flex-grow-1" style={{ height: '6px', width: '100px' }}>
-                          <div 
-                            className="progress-bar bg-success" 
-                            style={{ width: `${(item.quantity / item.minStock) * 50}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge ${
-                        item.status === 'In Stock' ? 'bg-success' :
-                        item.status === 'Low Stock' ? 'bg-warning' :
-                        'bg-danger'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td>{new Date(item.lastUpdated).toLocaleDateString()}</td>
-                    <td>
-                      <button 
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => handleViewDetails(item)}
-                      >
-                        <i className="bi bi-eye me-1"></i>View Details
+                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => handleViewDetails(item)}>
+                        <i className="bi bi-eye me-1"></i>View
+                      </button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteItem(item.id)}>
+                        <i className="bi bi-trash me-1"></i>Delete
                       </button>
                     </td>
                   </tr>
                 ))}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="text-center py-4">
+                    <td colSpan="9" className="text-center py-4">
                       <div className="py-5">
                         <i className="bi bi-inbox fs-1 text-muted"></i>
                         <h5 className="mt-3">No items found</h5>
@@ -435,17 +298,12 @@ const Inventory = () => {
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Category</label>
-                      <select 
-                        className="form-select"
-                        required
+                      <input
+                        type="text"
+                        className="form-control"
                         value={newItem.category}
                         onChange={(e) => setNewItem({...newItem, category: e.target.value})}
-                      >
-                        <option value="">Select category</option>
-                        {categories.slice(1).map((cat, index) => (
-                          <option key={index} value={cat}>{cat}</option>
-                        ))}
-                      </select>
+                      />
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Quantity</label>
@@ -468,13 +326,13 @@ const Inventory = () => {
                       />
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Minimum Stock</label>
+                      <label className="form-label">Threshold</label>
                       <input
                         type="number"
                         className="form-control"
                         required
-                        value={newItem.minStock}
-                        onChange={(e) => setNewItem({...newItem, minStock: e.target.value})}
+                        value={newItem.threshold}
+                        onChange={(e) => setNewItem({...newItem, threshold: e.target.value})}
                       />
                     </div>
                     <div className="col-md-6">
@@ -490,13 +348,17 @@ const Inventory = () => {
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Supplier</label>
-                      <input
-                        type="text"
-                        className="form-control"
+                      <select
+                        className="form-select"
                         required
-                        value={newItem.supplier}
-                        onChange={(e) => setNewItem({...newItem, supplier: e.target.value})}
-                      />
+                        value={newItem.supplier_id}
+                        onChange={(e) => setNewItem({...newItem, supplier_id: e.target.value})}
+                      >
+                        <option value="">Select supplier</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="col-12">
                       <label className="form-label">Description</label>
@@ -506,6 +368,15 @@ const Inventory = () => {
                         value={newItem.description}
                         onChange={(e) => setNewItem({...newItem, description: e.target.value})}
                       ></textarea>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Location</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newItem.location}
+                        onChange={(e) => setNewItem({...newItem, location: e.target.value})}
+                      />
                     </div>
                   </div>
                 </div>
@@ -559,15 +430,12 @@ const Inventory = () => {
                     {isEditing ? (
                       <div className="mb-3">
                         <label className="form-label">Category</label>
-                        <select
-                          className="form-select"
+                        <input
+                          type="text"
+                          className="form-control"
                           value={editedItem.category}
                           onChange={(e) => setEditedItem({...editedItem, category: e.target.value})}
-                        >
-                          {categories.slice(1).map((category, index) => (
-                            <option key={index} value={category}>{category}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     ) : (
                       <p className="mb-2"><strong>Category:</strong> {selectedItem.category}</p>
@@ -591,16 +459,16 @@ const Inventory = () => {
                   <div className="col-md-6">
                     {isEditing ? (
                       <div className="mb-3">
-                        <label className="form-label">Minimum Stock</label>
+                        <label className="form-label">Threshold</label>
                         <input
                           type="number"
                           className="form-control"
-                          value={editedItem.minStock}
-                          onChange={(e) => setEditedItem({...editedItem, minStock: parseInt(e.target.value)})}
+                          value={editedItem.threshold}
+                          onChange={(e) => setEditedItem({...editedItem, threshold: parseInt(e.target.value)})}
                         />
                       </div>
                     ) : (
-                      <p className="mb-2"><strong>Minimum Stock:</strong> {selectedItem.minStock}</p>
+                      <p className="mb-2"><strong>Threshold:</strong> {selectedItem.threshold}</p>
                     )}
                   </div>
                   <div className="col-md-6">
@@ -620,15 +488,53 @@ const Inventory = () => {
                   </div>
                   <div className="col-md-6">
                     <p className="mb-2">
-                      <strong>Status:</strong>
-                      <span className={`badge ms-2 ${
-                        selectedItem.status === 'In Stock' ? 'bg-success' :
-                        selectedItem.status === 'Low Stock' ? 'bg-warning' :
-                        'bg-danger'
-                      }`}>
-                        {selectedItem.status}
-                      </span>
+                      <strong>Supplier:</strong> {selectedItem.supplier?.name || 'N/A'}
                     </p>
+                  </div>
+                  <div className="col-md-6">
+                    {isEditing ? (
+                      <div className="mb-3">
+                        <label className="form-label">Price</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={editedItem.price}
+                          onChange={(e) => setEditedItem({...editedItem, price: parseFloat(e.target.value)})}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mb-2"><strong>Price:</strong> ₱{selectedItem.price}</p>
+                    )}
+                  </div>
+                  <div className="col-md-6">
+                    {isEditing ? (
+                      <div className="mb-3">
+                        <label className="form-label">Location</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={editedItem.location}
+                          onChange={(e) => setEditedItem({...editedItem, location: e.target.value})}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mb-2"><strong>Location:</strong> {selectedItem.location}</p>
+                    )}
+                  </div>
+                  <div className="col-12">
+                    {isEditing ? (
+                      <div className="mb-3">
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-control"
+                          rows="3"
+                          value={editedItem.description}
+                          onChange={(e) => setEditedItem({...editedItem, description: e.target.value})}
+                        ></textarea>
+                      </div>
+                    ) : (
+                      <p className="mb-2"><strong>Description:</strong> {selectedItem.description}</p>
+                    )}
                   </div>
                 </div>
               </div>
