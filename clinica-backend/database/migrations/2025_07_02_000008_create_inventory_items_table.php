@@ -15,6 +15,9 @@ return new class extends Migration
             $table->integer('quantity');
             $table->string('unit');
             $table->decimal('price', 10, 2);
+            $table->integer('threshold')->default(0); // Minimum stock level for alerts
+            $table->string('category')->nullable(); // Category for filtering
+            $table->string('location')->nullable(); // Storage location
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->timestamps();
         });

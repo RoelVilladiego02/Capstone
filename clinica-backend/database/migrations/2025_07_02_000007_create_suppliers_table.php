@@ -15,6 +15,9 @@ return new class extends Migration
             $table->string('phone');
             $table->string('email');
             $table->string('address');
+            $table->string('category')->nullable(); // Medical Equipment, Pharmaceuticals, etc.
+            $table->enum('status', ['Active', 'Inactive'])->default('Active');
+            $table->decimal('rating', 2, 1)->default(0.0); // Rating out of 5
             $table->timestamps();
         });
     }

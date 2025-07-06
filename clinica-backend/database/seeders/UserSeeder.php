@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
             'Patient',
             'Doctor',
             'Receptionist',
-            'Inventory Manager',
+            'InventoryManager',
             'Manager'
         ];
 

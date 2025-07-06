@@ -23,7 +23,7 @@ return new class extends Migration
                 'Patient',
                 'Doctor',
                 'Receptionist',
-                'Inventory Manager',
+                'InventoryManager',
                 'Manager'
             ])->default('Patient'); // make sure default is valid
             $table->rememberToken();

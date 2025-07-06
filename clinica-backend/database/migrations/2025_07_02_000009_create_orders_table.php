@@ -13,7 +13,9 @@ return new class extends Migration
             $table->foreignId('inventory_item_id')->constrained('inventory_items');
             $table->integer('quantity');
             $table->date('order_date');
-            $table->string('status');
+            $table->enum('status', ['Pending', 'Approved', 'Shipped', 'Delivered', 'Cancelled'])->default('Pending');
+            $table->enum('priority', ['Low', 'Medium', 'High'])->default('Medium');
+            $table->date('expected_delivery')->nullable();
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->timestamps();
         });

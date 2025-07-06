@@ -52,13 +52,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('billing', App\Http\Controllers\BillingController::class);
 
     // Inventory
+    Route::get('/inventory/low-stock', [App\Http\Controllers\InventoryController::class, 'lowStock']);
+    Route::get('/inventory/analytics', [App\Http\Controllers\InventoryController::class, 'analytics']);
+    Route::get('/inventory/usage-trends', [App\Http\Controllers\InventoryController::class, 'usageTrends']);
     Route::apiResource('inventory', App\Http\Controllers\InventoryController::class);
 
     // Orders
     Route::apiResource('orders', App\Http\Controllers\OrderController::class);
+    Route::get('/orders/pending', [App\Http\Controllers\OrderController::class, 'pending']);
+    Route::put('/orders/{id}/approve', [App\Http\Controllers\OrderController::class, 'approve']);
+    Route::get('/orders/analytics', [App\Http\Controllers\OrderController::class, 'analytics']);
 
     // Suppliers
     Route::apiResource('suppliers', App\Http\Controllers\SupplierController::class);
+    Route::get('/suppliers/active', [App\Http\Controllers\SupplierController::class, 'active']);
+    Route::get('/suppliers/category/{category}', [App\Http\Controllers\SupplierController::class, 'byCategory']);
 
     // Prescriptions
     Route::apiResource('prescriptions', App\Http\Controllers\PrescriptionController::class);
