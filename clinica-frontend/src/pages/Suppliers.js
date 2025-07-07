@@ -126,31 +126,59 @@ const Suppliers = () => {
   });
 
   if (loading) {
-    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+          <div className="text-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3">Loading suppliers...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (error) {
-    return <div className="alert alert-danger my-4">{error}</div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="alert alert-danger" role="alert">
+          <h4 className="alert-heading">Error!</h4>
+          <p>{error}</p>
+          <button 
+            className="btn btn-outline-danger"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h4 className="mb-1">Suppliers Management</h4>
-          <p className="text-muted mb-0">Manage and track all supplier relationships</p>
+    <div className="container-fluid py-4 bg-light">
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2 className="fw-bold mb-0">Suppliers Management</h2>
+              <p className="text-muted mb-0">Manage and track all supplier relationships</p>
+            </div>
+            <button 
+              className="btn rounded-pill"
+              style={{ backgroundColor: '#E31937', color: 'white' }}
+              onClick={() => handleSupplierAction(null, 'add')}
+            >
+              <i className="bi bi-plus-lg me-2"></i>Add Supplier
+            </button>
+          </div>
         </div>
-        <button 
-          className="btn" 
-          style={{ backgroundColor: '#E31937', color: 'white' }}
-          onClick={() => handleSupplierAction(null, 'add')}
-        >
-          <i className="bi bi-plus-lg me-2"></i>Add Supplier
-        </button>
       </div>
 
-      <div className="card border-0 shadow-sm">
-        <div className="card-header bg-white py-3">
-          <div className="row g-3">
+      <div className="card border-0 shadow-sm rounded-lg">
+        <div className="card-header bg-white py-3 border-0">
+          <div className="row g-3 align-items-end">
             <div className="col-md-4">
               <div className="input-group">
                 <span className="input-group-text bg-light border-end-0">
@@ -211,9 +239,13 @@ const Suppliers = () => {
                       </div>
                     </td>
                     <td>{supplier.contact_name}</td>
-                    <td>{supplier.category}</td>
                     <td>
-                      <span className={`badge ${supplier.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>
+                      <span className="badge rounded-pill bg-light text-dark border">
+                        {supplier.category || 'Uncategorized'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge rounded-pill ${supplier.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>
                         {supplier.status}
                       </span>
                     </td>
@@ -272,13 +304,13 @@ const Suppliers = () => {
       {/* Supplier Modal */}
       {showModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow rounded-lg">
+              <div className="modal-header bg-primary text-white border-0">
+                <h5 className="modal-title fw-bold">
                   {selectedSupplier ? `Edit Supplier - ${selectedSupplier.name}` : 'Add New Supplier'}
                 </h5>
-                <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)}></button>
               </div>
               <div className="modal-body">
                 <form onSubmit={selectedSupplier ? handleEditSupplier : handleAddSupplier}>
@@ -356,13 +388,13 @@ const Suppliers = () => {
                       ></textarea>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
+                  <div className="modal-footer border-0">
+                    <button type="button" className="btn btn-outline-secondary rounded-pill px-4" onClick={() => setShowModal(false)}>
                       Cancel
                     </button>
                     <button 
                       type="submit" 
-                      className="btn"
+                      className="btn rounded-pill px-4"
                       style={{ backgroundColor: '#E31937', color: 'white' }}
                     >
                       {selectedSupplier ? 'Update Supplier' : 'Add Supplier'}

@@ -139,33 +139,61 @@ const Inventory = () => {
   });
 
   if (loading) {
-    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+          <div className="text-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3">Loading inventory...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (error) {
-    return <div className="alert alert-danger my-4">{error}</div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="alert alert-danger" role="alert">
+          <h4 className="alert-heading">Error!</h4>
+          <p>{error}</p>
+          <button 
+            className="btn btn-outline-danger"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container-fluid py-4">
+    <div className="container-fluid py-4 bg-light">
       {/* Header Section */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h4 className="mb-1">Inventory Management</h4>
-          <p className="text-muted mb-0">Track and manage your medical supplies and equipment</p>
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2 className="fw-bold mb-0">Inventory Management</h2>
+              <p className="text-muted mb-0">Track and manage your medical supplies and equipment</p>
+            </div>
+            <button 
+              className="btn rounded-pill"
+              style={{ backgroundColor: '#E31937', color: 'white' }}
+              onClick={() => setShowAddModal(true)}
+            >
+              <i className="bi bi-plus-lg me-2"></i>Add New Item
+            </button>
+          </div>
         </div>
-        <button 
-          className="btn" 
-          style={{ backgroundColor: '#E31937', color: 'white' }}
-          onClick={() => setShowAddModal(true)}
-        >
-          <i className="bi bi-plus-lg me-2"></i>Add New Item
-        </button>
       </div>
 
       {/* Search and Filter Section */}
-      <div className="card border-0 shadow-sm mb-4">
+      <div className="card border-0 shadow-sm mb-4 rounded-lg">
         <div className="card-body">
-          <div className="row g-3">
+          <div className="row g-3 align-items-end">
             <div className="col-md-4">
               <label className="form-label">Search Items</label>
               <input
@@ -202,9 +230,9 @@ const Inventory = () => {
                 <option value="outOfStock">Out of Stock</option>
               </select>
             </div>
-            <div className="col-md-2 d-flex align-items-end">
+            <div className="col-md-2">
               <button
-                className="btn btn-outline-secondary w-100"
+                className="btn btn-outline-secondary w-100 mt-3"
                 onClick={() => {
                   setSearchTerm('');
                   setFilterCategory('all');
@@ -219,7 +247,7 @@ const Inventory = () => {
       </div>
 
       {/* Inventory Table */}
-      <div className="card border-0 shadow-sm">
+      <div className="card border-0 shadow-sm rounded-lg">
         <div className="card-body p-0">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
@@ -239,21 +267,31 @@ const Inventory = () => {
               <tbody>
                 {filteredItems.map(item => (
                   <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.category}</td>
-                    <td>{item.quantity}</td>
+                    <td className="fw-medium">{item.name}</td>
+                    <td>
+                      <span className="badge rounded-pill bg-light text-dark border">
+                        {item.category || 'Uncategorized'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge ${item.quantity === 0 ? 'bg-danger' : item.quantity <= item.threshold ? 'bg-warning text-dark' : 'bg-success'}`}>
+                        {item.quantity}
+                      </span>
+                    </td>
                     <td>{item.unit}</td>
                     <td>₱{item.price}</td>
                     <td>{item.threshold}</td>
                     <td>{item.supplier?.name || 'N/A'}</td>
                     <td>{item.location}</td>
                     <td>
-                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => handleViewDetails(item)}>
-                        <i className="bi bi-eye me-1"></i>View
-                      </button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteItem(item.id)}>
-                        <i className="bi bi-trash me-1"></i>Delete
-                      </button>
+                      <div className="btn-group">
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => handleViewDetails(item)}>
+                          <i className="bi bi-eye me-1"></i>View
+                        </button>
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteItem(item.id)}>
+                          <i className="bi bi-trash me-1"></i>Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -277,11 +315,11 @@ const Inventory = () => {
       {/* Add New Item Modal */}
       {showAddModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Add New Item</h5>
-                <button type="button" className="btn-close" onClick={() => setShowAddModal(false)}></button>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow rounded-lg">
+              <div className="modal-header bg-primary text-white border-0">
+                <h5 className="modal-title fw-bold">Add New Item</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowAddModal(false)}></button>
               </div>
               <form onSubmit={handleAddItem}>
                 <div className="modal-body">
@@ -380,13 +418,13 @@ const Inventory = () => {
                     </div>
                   </div>
                 </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
+                <div className="modal-footer border-0">
+                  <button type="button" className="btn btn-outline-secondary rounded-pill px-4" onClick={() => setShowAddModal(false)}>
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="btn"
+                    className="btn rounded-pill px-4"
                     style={{ backgroundColor: '#E31937', color: 'white' }}
                   >
                     Add Item
@@ -401,13 +439,13 @@ const Inventory = () => {
       {/* Details/Edit Modal */}
       {showDetailsModal && selectedItem && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow rounded-lg">
+              <div className="modal-header bg-primary text-white border-0">
+                <h5 className="modal-title fw-bold">
                   {isEditing ? 'Edit Item' : 'Item Details'}
                 </h5>
-                <button type="button" className="btn-close" onClick={() => setShowDetailsModal(false)}></button>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDetailsModal(false)}></button>
               </div>
               <div className="modal-body">
                 <div className="row g-3">
@@ -538,10 +576,10 @@ const Inventory = () => {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer border-0">
                 <button 
                   type="button" 
-                  className="btn btn-secondary"
+                  className="btn btn-outline-secondary rounded-pill px-4"
                   onClick={() => {
                     setShowDetailsModal(false);
                     setIsEditing(false);
@@ -552,7 +590,7 @@ const Inventory = () => {
                 {isEditing ? (
                   <button 
                     type="button" 
-                    className="btn"
+                    className="btn rounded-pill px-4"
                     style={{ backgroundColor: '#E31937', color: 'white' }}
                     onClick={handleSaveEdit}
                   >
@@ -561,7 +599,7 @@ const Inventory = () => {
                 ) : (
                   <button 
                     type="button" 
-                    className="btn"
+                    className="btn rounded-pill px-4"
                     style={{ backgroundColor: '#E31937', color: 'white' }}
                     onClick={handleEditClick}
                   >

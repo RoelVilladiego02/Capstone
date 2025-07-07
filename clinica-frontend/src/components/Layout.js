@@ -94,7 +94,8 @@ const Layout = () => {
               { to: '/settings/audit-logs', label: 'Audit Logs' },
               { to: '/settings/security', label: 'Security Settings' }
             ]
-          }
+          },
+          { to: '/stockreports', label: 'General Inventory Reports', icon: 'bi-graph-up' },
         ];
       case 'Patient':
         return [
@@ -132,7 +133,7 @@ const Layout = () => {
           { to: '/inventory', label: 'Inventory', icon: 'bi-box-seam' },
           { to: '/orders', label: 'Orders', icon: 'bi-cart' },
           { to: '/suppliers', label: 'Suppliers', icon: 'bi-truck' },
-          { to: '/stockreports', label: 'Stock Reports', icon: 'bi-graph-up' },
+          { to: '/stockreports', label: 'General Inventory Reports', icon: 'bi-graph-up' },
           { to: '/profile', label: 'My Profile', icon: 'bi-person-circle' }
         ];
 

@@ -104,31 +104,59 @@ const Orders = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-5"><div className="spinner-border" role="status"></div></div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+          <div className="text-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3">Loading orders...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (error) {
-    return <div className="alert alert-danger my-4">{error}</div>;
+    return (
+      <div className="container-fluid py-4 bg-light">
+        <div className="alert alert-danger" role="alert">
+          <h4 className="alert-heading">Error!</h4>
+          <p>{error}</p>
+          <button 
+            className="btn btn-outline-danger"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h4 className="mb-1">Purchase Orders</h4>
-          <p className="text-muted mb-0">Manage all purchase orders</p>
+    <div className="container-fluid py-4 bg-light">
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2 className="fw-bold mb-0">Purchase Orders</h2>
+              <p className="text-muted mb-0">Manage all purchase orders</p>
+            </div>
+            <button 
+              className="btn rounded-pill"
+              style={{ backgroundColor: '#E31937', color: 'white' }}
+              onClick={() => { setShowOrderModal(true); setSelectedOrder(null); }}
+            >
+              <i className="bi bi-plus-lg me-2"></i>New Order
+            </button>
+          </div>
         </div>
-        <button 
-          className="btn" 
-          style={{ backgroundColor: '#E31937', color: 'white' }}
-          onClick={() => { setShowOrderModal(true); setSelectedOrder(null); }}
-        >
-          <i className="bi bi-plus-lg me-2"></i>New Order
-        </button>
       </div>
 
-      <div className="card border-0 shadow-sm">
-        <div className="card-header bg-white py-3">
-          <div className="row g-3">
+      <div className="card border-0 shadow-sm rounded-lg">
+        <div className="card-header bg-white py-3 border-0">
+          <div className="row g-3 align-items-end">
             <div className="col-md-4">
               <div className="input-group">
                 <span className="input-group-text bg-light border-end-0">
@@ -183,12 +211,12 @@ const Orders = () => {
                     <td>{order.inventory_item?.name || 'N/A'}</td>
                     <td>{order.quantity}</td>
                     <td>
-                      <span className={`badge ${getStatusBadgeClass(order.status)}`}>
+                      <span className={`badge ${getStatusBadgeClass(order.status)} rounded-pill`}>
                         {order.status}
                       </span>
                     </td>
                     <td>
-                      <span className={`badge bg-${
+                      <span className={`badge rounded-pill bg-${
                         order.priority === 'High' ? 'danger' :
                         order.priority === 'Medium' ? 'warning' : 'info'
                       }`}>
@@ -196,17 +224,19 @@ const Orders = () => {
                       </span>
                     </td>
                     <td>
-                      <button 
-                        className="btn btn-sm btn-outline-primary me-2"
-                        onClick={() => handleViewOrder(order)}
-                      >
-                        View Details
-                      </button>
-                      {order.status === 'Pending' && (
-                        <button className="btn btn-sm btn-outline-success" onClick={() => handleApproveOrder(order.id)}>
-                          Approve
+                      <div className="btn-group">
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleViewOrder(order)}
+                        >
+                          <i className="bi bi-eye me-1"></i>View
                         </button>
-                      )}
+                        {order.status === 'Pending' && (
+                          <button className="btn btn-sm btn-outline-success" onClick={() => handleApproveOrder(order.id)}>
+                            <i className="bi bi-check2 me-1"></i>Approve
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -230,15 +260,15 @@ const Orders = () => {
       {/* Order Modal */}
       {showOrderModal && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow rounded-lg">
+              <div className="modal-header bg-primary text-white border-0">
+                <h5 className="modal-title fw-bold">
                   {selectedOrder ? `Order Details - ${selectedOrder.id}` : 'New Purchase Order'}
                 </h5>
                 <button 
                   type="button" 
-                  className="btn-close"
+                  className="btn-close btn-close-white"
                   onClick={() => {
                     setShowOrderModal(false);
                     setSelectedOrder(null);
@@ -328,10 +358,10 @@ const Orders = () => {
                   </form>
                 )}
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer border-0">
                 <button 
                   type="button" 
-                  className="btn btn-secondary"
+                  className="btn btn-outline-secondary rounded-pill px-4"
                   onClick={() => {
                     setShowOrderModal(false);
                     setSelectedOrder(null);
@@ -342,7 +372,7 @@ const Orders = () => {
                 {selectedOrder && selectedOrder.status === 'Pending' && (
                   <button 
                     type="button" 
-                    className="btn"
+                    className="btn rounded-pill px-4"
                     style={{ backgroundColor: '#E31937', color: 'white' }}
                     onClick={() => handleApproveOrder(selectedOrder.id)}
                   >

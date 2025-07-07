@@ -21,7 +21,6 @@ import Orders from './pages/Orders';
 import Suppliers from './pages/Suppliers';
 import BillingHistory from './pages/BillingHistory';
 import RevenueAnalysis from './pages/analytics/RevenueAnalysis';
-import StockReports from './pages/StockReports';
 import MedicalRecordView from './components/medical-records/MedicalRecordView';
 import RoleManagement from './pages/users/RoleManagement';
 import Permissions from './pages/users/Permissions';
@@ -40,6 +39,7 @@ import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
 import InventoryManagerDashboard from './pages/inventory/InventoryManagerDashboard';
 import PatientDashboard from './pages/patient/PatientDashboard';
+import GeneralInventoryReports from './pages/GeneralInventoryReports';
 
 function App() {
   const { currentUser, loading } = useAuth();
@@ -273,7 +273,7 @@ function App() {
           {/* Stock Reports Route */}
           <Route path="/stockreports" element={
             <PrivateRoute roles={['Admin', 'InventoryManager']}>
-              <StockReports />
+              <GeneralInventoryReports />
             </PrivateRoute>
           } />
 
