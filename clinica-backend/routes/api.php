@@ -58,10 +58,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('inventory', App\Http\Controllers\InventoryController::class);
 
     // Orders
+    Route::get('/orders/analytics', [App\Http\Controllers\OrderController::class, 'analytics']);
     Route::apiResource('orders', App\Http\Controllers\OrderController::class);
     Route::get('/orders/pending', [App\Http\Controllers\OrderController::class, 'pending']);
     Route::put('/orders/{id}/approve', [App\Http\Controllers\OrderController::class, 'approve']);
-    Route::get('/orders/analytics', [App\Http\Controllers\OrderController::class, 'analytics']);
 
     // Suppliers
     Route::apiResource('suppliers', App\Http\Controllers\SupplierController::class);
