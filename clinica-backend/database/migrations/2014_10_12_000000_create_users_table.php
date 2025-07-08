@@ -24,7 +24,7 @@ return new class extends Migration
                 'Doctor',
                 'Receptionist',
                 'InventoryManager',
-                'Manager'
+                'Admin'
             ])->default('Patient'); // make sure default is valid
             $table->rememberToken();
             $table->timestamps();

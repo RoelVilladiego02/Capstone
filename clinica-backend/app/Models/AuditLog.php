@@ -13,4 +13,9 @@ class AuditLog extends Model
         'user_id', 'action', 'description', 'ip_address', 'created_at'
     ];
     public $timestamps = false;
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

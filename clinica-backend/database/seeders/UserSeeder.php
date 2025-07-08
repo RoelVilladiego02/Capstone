@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use App\Models\Role;
 
 class UserSeeder extends Seeder
 {
@@ -18,18 +19,24 @@ class UserSeeder extends Seeder
             'Doctor',
             'Receptionist',
             'InventoryManager',
-            'Manager'
+            'Admin'
         ];
 
-        foreach ($roles as $role) {
-            User::create([
-                'name' => $role . ' User',
-                'username' => strtolower(str_replace(' ', '_', $role)) . '_user',
+        foreach ($roles as $roleName) {
+            $user = User::create([
+                'name' => $roleName . ' User',
+                'username' => strtolower(str_replace(' ', '_', $roleName)) . '_user',
                 'phone_number' => '09171234567',
-                'email' => strtolower(str_replace(' ', '_', $role)) . '@example.com',
+                'email' => strtolower(str_replace(' ', '_', $roleName)) . '@example.com',
                 'password' => Hash::make('12345678'),
-                'role' => $role, // assign correct role here
+                'age' => $roleName === 'Patient' ? 30 : ($roleName === 'Doctor' ? 45 : 28),
+                'gender' => $roleName === 'Doctor' ? 'Male' : ($roleName === 'Patient' ? 'Female' : 'Other'),
+                'status' => 'Active',
+                'specialization' => $roleName === 'Doctor' ? 'General Medicine' : null,
+                'department' => $roleName === 'Doctor' ? 'General Practice' : ($roleName === 'Receptionist' ? 'Front Desk' : null),
             ]);
+            $role = Role::firstOrCreate(['name' => $roleName]);
+            $user->roles()->attach($role->id);
         }
     }
 }

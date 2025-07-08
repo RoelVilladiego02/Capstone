@@ -20,11 +20,15 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'username',
-        'phone_number',
         'email',
+        'phone_number',
         'password',
-        'role',
         'fee',
+        'age',
+        'gender',
+        'status',
+        'specialization',
+        'department',
     ];
 
     /**
@@ -46,4 +50,14 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class);
+    }
+
+    public function permissions()
+    {
+        return $this->belongsToMany(Permission::class);
+    }
 }

@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             InventorySeeder::class,
+            PermissionSeeder::class, // Add this line
         ]);
     }
 }

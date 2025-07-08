@@ -87,4 +87,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Audit Logs
     Route::get('/audit-logs', [App\Http\Controllers\AuditLogController::class, 'index']);
+
+    // Roles
+    Route::apiResource('roles', App\Http\Controllers\RoleController::class);
+    Route::post('/roles/{id}/permissions', [App\Http\Controllers\RoleController::class, 'assignPermissions']);
+
+    // Permissions
+    Route::apiResource('permissions', App\Http\Controllers\PermissionController::class);
+    Route::post('/permissions/{id}/assign-to-roles', [App\Http\Controllers\PermissionController::class, 'assignToRoles']);
+    Route::post('/permissions/{id}/assign-to-users', [App\Http\Controllers\PermissionController::class, 'assignToUsers']);
 });
