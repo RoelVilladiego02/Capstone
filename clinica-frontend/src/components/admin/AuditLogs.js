@@ -1,45 +1,27 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { auditLogService } from '../../services/auditLogService';
 
 const AuditLogs = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  // Mock audit log data
-  const auditLogs = [
-    {
-      id: 1,
-      timestamp: '2024-02-15T09:30:00',
-      user: 'admin@clinica.com',
-      action: 'LOGIN',
-      description: 'User logged in successfully',
-      ipAddress: '192.168.1.100'
-    },
-    {
-      id: 2,
-      timestamp: '2024-02-15T10:15:00',
-      user: 'dr.smith@clinica.com',
-      action: 'UPDATE',
-      description: 'Updated patient record #12345',
-      ipAddress: '192.168.1.101'
-    },
-    {
-      id: 3,
-      timestamp: '2024-02-15T11:00:00',
-      user: 'receptionist@clinica.com',
-      action: 'CREATE',
-      description: 'Created new appointment for patient #67890',
-      ipAddress: '192.168.1.102'
-    },
-    {
-      id: 4,
-      timestamp: '2024-02-15T11:45:00',
-      user: 'admin@clinica.com',
-      action: 'DELETE',
-      description: 'Deleted expired prescriptions',
-      ipAddress: '192.168.1.100'
-    }
-  ];
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    auditLogService.getLogs({ page })
+      .then(data => {
+        setLogs(data.data || []);
+        setTotalPages(data.last_page || 1);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError('Failed to load audit logs.');
+        setLoading(false);
+      });
+  }, [page]);
 
   const getActionBadgeClass = (action) => {
     switch(action) {
@@ -51,62 +33,14 @@ const AuditLogs = () => {
     }
   };
 
+  if (loading) return <div>Loading audit logs...</div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h5 className="mb-0">Audit Logs</h5>
-        <button className="btn btn-outline-primary">
-          <i className="bi bi-download me-2"></i>Export Logs
-        </button>
       </div>
-
-      <div className="row g-3 mb-4">
-        <div className="col-md-4">
-          <div className="input-group">
-            <span className="input-group-text bg-light border-end-0">
-              <i className="bi bi-search"></i>
-            </span>
-            <input
-              type="text"
-              className="form-control border-start-0"
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="col-md-2">
-          <select 
-            className="form-select"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-          >
-            <option value="all">All Actions</option>
-            <option value="LOGIN">Login</option>
-            <option value="CREATE">Create</option>
-            <option value="UPDATE">Update</option>
-            <option value="DELETE">Delete</option>
-          </select>
-        </div>
-        <div className="col-md-6">
-          <div className="input-group">
-            <input
-              type="date"
-              className="form-control"
-              value={dateRange.start}
-              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-            />
-            <span className="input-group-text bg-light">to</span>
-            <input
-              type="date"
-              className="form-control"
-              value={dateRange.end}
-              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-            />
-          </div>
-        </div>
-      </div>
-
       <div className="table-responsive">
         <table className="table table-hover align-middle">
           <thead className="bg-light">
@@ -116,30 +50,46 @@ const AuditLogs = () => {
               <th>Action</th>
               <th>Description</th>
               <th>IP Address</th>
-              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            {auditLogs.map(log => (
-              <tr key={log.id}>
-                <td>{new Date(log.timestamp).toLocaleString()}</td>
-                <td>{log.user}</td>
-                <td>
-                  <span className={`badge ${getActionBadgeClass(log.action)}`}>
-                    {log.action}
-                  </span>
-                </td>
-                <td>{log.description}</td>
-                <td>{log.ipAddress}</td>
-                <td>
-                  <button className="btn btn-sm btn-outline-secondary">
-                    <i className="bi bi-eye"></i>
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {logs.length === 0 ? (
+              <tr><td colSpan="5" className="text-center">No audit logs found.</td></tr>
+            ) : (
+              logs.map(log => (
+                <tr key={log.id}>
+                  <td>{log.created_at ? new Date(log.created_at).toLocaleString() : ''}</td>
+                  <td>{log.user ? `${log.user.name} (${log.user.email})` : 'N/A'}</td>
+                  <td>
+                    <span className={`badge ${getActionBadgeClass(log.action)}`}>
+                      {log.action}
+                    </span>
+                  </td>
+                  <td>{log.description}</td>
+                  <td>{log.ip_address}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
+      </div>
+      {/* Pagination Controls */}
+      <div className="d-flex justify-content-center mt-3">
+        <nav>
+          <ul className="pagination">
+            <li className={`page-item${page === 1 ? ' disabled' : ''}`}>
+              <button className="page-link" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</button>
+            </li>
+            {[...Array(totalPages)].map((_, idx) => (
+              <li key={idx+1} className={`page-item${page === idx+1 ? ' active' : ''}`}>
+                <button className="page-link" onClick={() => setPage(idx+1)}>{idx+1}</button>
+              </li>
+            ))}
+            <li className={`page-item${page === totalPages ? ' disabled' : ''}`}>
+              <button className="page-link" onClick={() => setPage(page + 1)} disabled={page === totalPages}>Next</button>
+            </li>
+          </ul>
+        </nav>
       </div>
     </div>
   );

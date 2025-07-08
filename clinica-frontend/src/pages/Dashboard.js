@@ -9,6 +9,9 @@ import PatientDashboard from './patient/PatientDashboard';
 const Dashboard = () => {
   const { currentUser } = useAuth();
 
+  // Get the first role, fallback to empty string if not present
+  const userRole = Array.isArray(currentUser.roles) ? currentUser.roles[0] : currentUser.role || '';
+
   const getWelcomeMessage = (role) => {
     switch(role) {
       case 'Admin':
@@ -28,7 +31,7 @@ const Dashboard = () => {
 
   const getDashboardByRole = () => {
     // Normalize role to remove spaces for matching
-    const normalizedRole = currentUser.role.replace(/\s+/g, '');
+    const normalizedRole = userRole.replace(/\s+/g, '');
     switch(normalizedRole) {
       case 'Admin':
         return <AdminDashboard />;
@@ -47,7 +50,7 @@ const Dashboard = () => {
 
   return (
     <div className="container-fluid">
-      <h1>{getWelcomeMessage(currentUser.role)}</h1>
+      <h1>{getWelcomeMessage(userRole)}</h1>
       {getDashboardByRole()}
     </div>
   );

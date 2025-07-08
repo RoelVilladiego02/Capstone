@@ -79,7 +79,8 @@ const GeneralInventoryReports = () => {
   }, []);
 
   // Only allow InventoryManager and Admin
-  if (!currentUser || !['InventoryManager', 'Admin'].includes(currentUser.role)) {
+  const userRoles = Array.isArray(currentUser?.roles) ? currentUser.roles : [currentUser?.role];
+  if (!currentUser || !userRoles.some(role => ['InventoryManager', 'Admin'].includes(role))) {
     return <Navigate to="/login" />;
   }
 

@@ -11,6 +11,9 @@ const Layout = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 992);
   const [expandedMenus, setExpandedMenus] = useState({});
 
+  // Get the first role, fallback to empty string if not present
+  const userRole = Array.isArray(currentUser?.roles) ? currentUser.roles[0] : currentUser?.role || '';
+
   // Handle window resize for responsive design
   useEffect(() => {
     const handleResize = () => {
@@ -81,7 +84,7 @@ const Layout = () => {
               { to: '/analytics/patients', label: 'Patient Demographics' },
               { to: '/analytics/visits', label: 'Visit Trends' },
               { to: '/analytics/doctors', label: 'Doctor Performance' },
-              { to: '/analytics/revenue', label: 'Revenue Analysis' }
+            /*   { to: '/analytics/revenue', label: 'Revenue Analysis' } */
             ]
           },
           { 
@@ -160,13 +163,18 @@ const Layout = () => {
     // Only auto-expand menus if sidebar is not collapsed
     if (!sidebarCollapsed) {
       const currentPath = location.pathname;
-      getNavigationItems(currentUser?.role).forEach(item => {
+      getNavigationItems(userRole).forEach(item => {
         if (item.children && item.children.some(child => currentPath.startsWith(child.to))) {
           setExpandedMenus(prev => ({ ...prev, [item.key]: true }));
         }
       });
     }
-  }, [location.pathname, currentUser?.role, sidebarCollapsed]);
+  }, [location.pathname, userRole, sidebarCollapsed]);
+
+  // Add this helper to close sidebar on mobile after navigation
+  const handleNavLinkClick = () => {
+    if (isMobile) setSidebarCollapsed(true);
+  };
 
   const NavLink = ({ to, label, icon, isActive, isCollapsed }) => {
     const handleClick = (e) => {
@@ -176,6 +184,7 @@ const Layout = () => {
         setSidebarCollapsed(false);
         return;
       }
+      handleNavLinkClick();
     };
 
     return (
@@ -325,6 +334,7 @@ const Layout = () => {
                 key={idx}
                 to={child.to}
                 className={`nav-link ${location.pathname === child.to ? 'active' : ''}`}
+                onClick={handleNavLinkClick}
                 style={{
                   color: 'white',
                   backgroundColor: location.pathname === child.to ? 'rgba(255,255,255,0.1)' : 'transparent',
@@ -357,6 +367,9 @@ const Layout = () => {
         <div 
           className="overlay" 
           onClick={() => setSidebarCollapsed(true)}
+          tabIndex={0}
+          role="button"
+          aria-label="Close sidebar"
           style={{
             position: 'fixed',
             top: 0,
@@ -364,7 +377,7 @@ const Layout = () => {
             right: 0,
             bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.5)',
-            zIndex: 999
+            zIndex: 1999 // higher than sidebar
           }}
         />
       )}
@@ -377,11 +390,16 @@ const Layout = () => {
           minHeight: '100vh',
           width: sidebarCollapsed ? '72px' : '260px',
           position: 'fixed',
-          left: isMobile && sidebarCollapsed ? '-72px' : '0',
+          // --- FIX: Only slide out on mobile, always visible on desktop ---
+          left: isMobile
+            ? (sidebarCollapsed ? '-260px' : '0')
+            : '0',
           top: 0,
           bottom: 0,
-          zIndex: 1000,
-          transition: 'all 0.3s ease-in-out',
+          zIndex: 2000,
+          transition: isMobile
+            ? 'left 0.3s cubic-bezier(.4,0,.2,1), width 0.3s cubic-bezier(.4,0,.2,1)'
+            : 'width 0.3s cubic-bezier(.4,0,.2,1)',
           boxShadow: '0 0 20px rgba(0,0,0,0.1)',
           overflowX: 'hidden',
           overflowY: 'auto'
@@ -447,7 +465,7 @@ const Layout = () => {
                   <div className="fw-medium text-truncate" style={{ maxWidth: '160px', fontSize: '1rem' }}>
                     {currentUser?.fullName || 'User'}
                   </div>
-                  <div className="text-light small opacity-75">{currentUser?.role || 'User'}</div>
+                  <div className="text-light small opacity-75">{userRole || 'User'}</div>
                 </div>
               )}
             </div>
@@ -456,7 +474,7 @@ const Layout = () => {
           {/* Navigation Items */}
           <div className="navigation-menu">
             <ul className="nav flex-column p-0">
-              {getNavigationItems(currentUser?.role).map((item, index) => (
+              {getNavigationItems(userRole).map((item, index) => (
                 <li key={index} className="nav-item position-relative">
                   {isPathActive(item.to) && !item.children && (
                     <div 
@@ -532,8 +550,8 @@ const Layout = () => {
       {/* Main Content */}
       <main 
         style={{
-          marginLeft: sidebarCollapsed ? (isMobile ? '0' : '72px') : (isMobile ? '0' : '260px'),
-          transition: 'margin-left 0.3s ease-in-out',
+          marginLeft: isMobile ? '0' : (sidebarCollapsed ? '72px' : '260px'),
+          transition: 'margin-left 0.3s cubic-bezier(.4,0,.2,1)',
           width: '100%',
           minHeight: '100vh',
           backgroundColor: '#f8f9fa'

@@ -1,26 +1,36 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { permissionService } from '../../services/permissionService';
 
 const Permissions = () => {
-  const [permissions] = useState([
-    {
-      id: 1,
-      category: 'Patient Records',
-      permissions: [
-        { name: 'view_patients', description: 'View patient information' },
-        { name: 'edit_medical_records', description: 'Edit medical records' },
-        { name: 'delete_records', description: 'Delete patient records' }
-      ]
-    },
-    {
-      id: 2,
-      category: 'Appointments',
-      permissions: [
-        { name: 'view_appointments', description: 'View appointment schedule' },
-        { name: 'create_appointment', description: 'Create new appointments' },
-        { name: 'cancel_appointment', description: 'Cancel appointments' }
-      ]
-    }
-  ]);
+  const [groupedPermissions, setGroupedPermissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    permissionService.getPermissions()
+      .then(data => {
+        // Group permissions by category
+        const groups = {};
+        data.forEach(perm => {
+          const cat = perm.category || 'Uncategorized';
+          if (!groups[cat]) groups[cat] = [];
+          groups[cat].push(perm);
+        });
+        // Convert to array for rendering
+        setGroupedPermissions(Object.entries(groups).map(([category, permissions], idx) => ({
+          id: idx + 1,
+          category,
+          permissions
+        })));
+        setLoading(false);
+      })
+      .catch(() => {
+        setError('Failed to load permissions.');
+        setLoading(false);
+      });
+  }, []);
 
   return (
     <div className="container-fluid py-4">
@@ -31,38 +41,44 @@ const Permissions = () => {
         </button>
       </div>
 
-      {permissions.map(category => (
-        <div key={category.id} className="card border-0 shadow-sm mb-4">
-          <div className="card-header bg-light">
-            <h5 className="mb-0">{category.category}</h5>
-          </div>
-          <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Permission</th>
-                    <th>Description</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {category.permissions.map((permission, index) => (
-                    <tr key={index}>
-                      <td>{permission.name}</td>
-                      <td>{permission.description}</td>
-                      <td>
-                        <button className="btn btn-sm btn-outline-primary me-2">Edit</button>
-                        <button className="btn btn-sm btn-outline-danger">Delete</button>
-                      </td>
+      {loading ? (
+        <div>Loading permissions...</div>
+      ) : error ? (
+        <div className="alert alert-danger">{error}</div>
+      ) : (
+        groupedPermissions.map(category => (
+          <div key={category.id} className="card border-0 shadow-sm mb-4">
+            <div className="card-header bg-light">
+              <h5 className="mb-0">{category.category}</h5>
+            </div>
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Permission</th>
+                      <th>Description</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {category.permissions.map((permission, index) => (
+                      <tr key={permission.id || index}>
+                        <td>{permission.name}</td>
+                        <td>{permission.description}</td>
+                        <td>
+                          <button className="btn btn-sm btn-outline-primary me-2">Edit</button>
+                          <button className="btn btn-sm btn-outline-danger">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 };

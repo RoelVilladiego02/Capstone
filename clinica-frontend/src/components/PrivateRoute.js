@@ -9,7 +9,10 @@ const PrivateRoute = ({ children, roles = [] }) => {
     return <Navigate to="/login" />;
   }
 
-  if (roles.length && !roles.includes(currentUser.role)) {
+  // Support multi-role users
+  const userRoles = Array.isArray(currentUser.roles) ? currentUser.roles : [currentUser.role];
+
+  if (roles.length && !userRoles.some(role => roles.includes(role))) {
     return <Navigate to="/" />;
   }
 
