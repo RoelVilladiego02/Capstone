@@ -14,28 +14,22 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        $roles = [
-            'Patient',
-            'Doctor',
-            'Receptionist',
-            'InventoryManager',
-            'Admin'
-        ];
+        $roleName = 'Doctor';
+        $role = Role::firstOrCreate(['name' => $roleName]);
 
-        foreach ($roles as $roleName) {
+        for ($i = 1; $i <= 10; $i++) {
             $user = User::create([
-                'name' => $roleName . ' User',
-                'username' => strtolower(str_replace(' ', '_', $roleName)) . '_user',
-                'phone_number' => '09171234567',
-                'email' => strtolower(str_replace(' ', '_', $roleName)) . '@example.com',
+                'name' => "Doctor User $i",
+                'username' => "doctor_user_$i",
+                'phone_number' => '09171234' . str_pad($i, 3, '0', STR_PAD_LEFT),
+                'email' => "doctor$i@example.com",
                 'password' => Hash::make('12345678'),
-                'age' => $roleName === 'Patient' ? 30 : ($roleName === 'Doctor' ? 45 : 28),
-                'gender' => $roleName === 'Doctor' ? 'Male' : ($roleName === 'Patient' ? 'Female' : 'Other'),
+                'age' => 35 + $i,
+                'gender' => $i % 2 === 0 ? 'Male' : 'Female',
                 'status' => 'Active',
-                'specialization' => $roleName === 'Doctor' ? 'General Medicine' : null,
-                'department' => $roleName === 'Doctor' ? 'General Practice' : ($roleName === 'Receptionist' ? 'Front Desk' : null),
+                'specialization' => 'General Medicine',
+                'department' => 'General Practice',
             ]);
-            $role = Role::firstOrCreate(['name' => $roleName]);
             $user->roles()->attach($role->id);
         }
     }

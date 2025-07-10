@@ -12,14 +12,16 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         // Log login attempt
-        Log::info('Login attempt', ['username' => $request->input('username')]);
+        Log::info('Login attempt', ['login' => $request->input('login')]);
 
         $credentials = $request->validate([
-            'username' => 'required|string',
+            'login' => 'required|string', // can be username or email
             'password' => 'required|string',
         ]);
 
-        $user = User::where('username', $credentials['username'])->first();
+        $user = User::where('username', $credentials['login'])
+            ->orWhere('email', $credentials['login'])
+            ->first();
 
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
@@ -66,6 +68,22 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => bcrypt($validated['password']),
             'role' => 'Patient', // always set to Patient
+        ]);
+
+        // Find the Patient role
+        $patientRole = \App\Models\Role::where('name', 'Patient')->first();
+        if ($patientRole) {
+            $user->roles()->attach($patientRole->id);
+        }
+
+        // Create a Patient record for this user
+        \App\Models\Patient::create([
+            'user_id' => $user->id,
+            'dob' => $request->input('dob'), // nullable, or set a default if needed
+            'gender' => $request->input('gender'), // nullable, or set a default if needed
+            'address' => $request->input('address'), // nullable, or set a default if needed
+            'phone' => $user->phone_number,
+            'emergency_contact' => $request->input('emergency_contact'), // nullable
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

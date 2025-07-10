@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AppointmentController extends Controller
 {
@@ -41,6 +42,45 @@ class AppointmentController extends Controller
             'type' => 'required|string',
             'concern' => 'nullable|string',
         ]);
+
+        // Check if there's already an appointment at the same date and time
+        $existingAppointment = Appointment::where('date', $validated['date'])
+            ->where('time', $validated['time'])
+            ->where('status', '!=', 'Cancelled') // Don't count cancelled appointments
+            ->first();
+
+        if ($existingAppointment) {
+            throw ValidationException::withMessages([
+                'time' => ['This time slot is already booked. Please choose a different time.']
+            ]);
+        }
+
+        // Check if the patient already has an appointment on the same date and time
+        $patientExistingAppointment = Appointment::where('patient_id', $validated['patient_id'])
+            ->where('date', $validated['date'])
+            ->where('time', $validated['time'])
+            ->where('status', '!=', 'Cancelled')
+            ->first();
+
+        if ($patientExistingAppointment) {
+            throw ValidationException::withMessages([
+                'time' => ['You already have an appointment at this time.']
+            ]);
+        }
+
+        // Check if the doctor is available at the requested time
+        $doctorBusy = Appointment::where('doctor_id', $validated['doctor_id'])
+            ->where('date', $validated['date'])
+            ->where('time', $validated['time'])
+            ->where('status', '!=', 'Cancelled')
+            ->first();
+
+        if ($doctorBusy) {
+            throw ValidationException::withMessages([
+                'time' => ['The selected doctor is not available at this time. Please choose a different time.']
+            ]);
+        }
+
         return Appointment::create($validated);
     }
 
@@ -56,6 +96,42 @@ class AppointmentController extends Controller
             'type' => 'sometimes|string',
             'concern' => 'nullable|string',
         ]);
+
+        // If updating date/time, check for conflicts
+        if (isset($validated['date']) || isset($validated['time'])) {
+            $checkDate = $validated['date'] ?? $appointment->date;
+            $checkTime = $validated['time'] ?? $appointment->time;
+            $checkDoctorId = $validated['doctor_id'] ?? $appointment->doctor_id;
+            $checkPatientId = $validated['patient_id'] ?? $appointment->patient_id;
+
+            // Check for existing appointments at the same time (excluding current appointment)
+            $existingAppointment = Appointment::where('date', $checkDate)
+                ->where('time', $checkTime)
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'Cancelled')
+                ->first();
+
+            if ($existingAppointment) {
+                throw ValidationException::withMessages([
+                    'time' => ['This time slot is already booked. Please choose a different time.']
+                ]);
+            }
+
+            // Check if the doctor is available
+            $doctorBusy = Appointment::where('doctor_id', $checkDoctorId)
+                ->where('date', $checkDate)
+                ->where('time', $checkTime)
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'Cancelled')
+                ->first();
+
+            if ($doctorBusy) {
+                throw ValidationException::withMessages([
+                    'time' => ['The selected doctor is not available at this time.']
+                ]);
+            }
+        }
+
         $appointment->update($validated);
         return $appointment;
     }
@@ -180,5 +256,41 @@ class AppointmentController extends Controller
             });
 
         return response()->json($teleconsults);
+    }
+
+    /**
+     * Check if a time slot is available
+     */
+    public function checkAvailability(Request $request)
+    {
+        \Log::info('Availability check requested', $request->all());
+        
+        $request->validate([
+            'date' => 'required|date',
+            'time' => 'required',
+            'doctor_id' => 'sometimes|exists:users,id',
+        ]);
+
+        $query = Appointment::where('date', $request->date)
+            ->where('time', $request->time)
+            ->where('status', '!=', 'Cancelled');
+
+        if ($request->has('doctor_id')) {
+            $query->where('doctor_id', $request->doctor_id);
+        }
+
+        $isAvailable = !$query->exists();
+        
+        \Log::info('Availability check result', [
+            'date' => $request->date,
+            'time' => $request->time,
+            'doctor_id' => $request->doctor_id,
+            'available' => $isAvailable
+        ]);
+
+        return response()->json([
+            'available' => $isAvailable,
+            'message' => $isAvailable ? 'Time slot is available' : 'Time slot is already booked'
+        ]);
     }
 }

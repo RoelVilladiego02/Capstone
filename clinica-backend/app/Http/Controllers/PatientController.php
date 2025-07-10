@@ -50,4 +50,17 @@ class PatientController extends Controller
         Patient::destroy($id);
         return response()->noContent();
     }
+
+    public function me(Request $request)
+    {
+        $user = $request->user();
+        $patient = \App\Models\Patient::where('user_id', $user->id)->first();
+        $db = \DB::connection()->getDatabaseName();
+        return response()->json([
+            'user_id' => $user->id,
+            'user' => $user,
+            'patient' => $patient,
+            'database' => $db
+        ]);
+    }
 }

@@ -33,14 +33,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/{id}', [App\Http\Controllers\UserController::class, 'destroy']);
     Route::get('/doctors', [App\Http\Controllers\UserController::class, 'doctors']);
 
-    // Appointments
+    // Appointments - Place specific routes before resource routes
+    Route::get('/appointments/check-availability', [App\Http\Controllers\AppointmentController::class, 'checkAvailability']);
     Route::apiResource('appointments', App\Http\Controllers\AppointmentController::class);
     Route::post('/appointments/{id}/check-in', [App\Http\Controllers\AppointmentController::class, 'checkIn']);
     Route::get('/doctors/{doctorId}/appointments', [App\Http\Controllers\AppointmentController::class, 'doctorAppointments']);
     Route::get('/doctors/{doctorId}/todays-appointments', [App\Http\Controllers\AppointmentController::class, 'todaysDoctorAppointments']);
     Route::get('/doctors/{doctorId}/teleconsultations', [App\Http\Controllers\AppointmentController::class, 'upcomingTeleconsultations']);
 
-    // Patients
+    // Patients - IMPORTANT: Specific routes must come BEFORE resource routes
+    Route::get('/patients/me', [App\Http\Controllers\PatientController::class, 'me']);
     Route::apiResource('patients', App\Http\Controllers\PatientController::class);
 
     // Medical Records
