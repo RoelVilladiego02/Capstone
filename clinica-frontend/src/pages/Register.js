@@ -10,7 +10,11 @@ const Register = () => {
     confirmPassword: '',
     email: '',
     name: '', // changed from fullName to name
-    phone_number: '' // changed from phoneNumber to phone_number
+    phone_number: '', // changed from phoneNumber to phone_number
+    dob: '', // new
+    gender: '', // new
+    address: '', // new
+    emergency_contact: '' // new
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -33,7 +37,11 @@ const Register = () => {
         phone_number: formData.phone_number, // changed from phoneNumber
         email: formData.email,
         password: formData.password,
-        role: 'Patient'
+        role: 'Patient',
+        dob: formData.dob, // new
+        gender: formData.gender, // new
+        address: formData.address, // new
+        emergency_contact: formData.emergency_contact // new
       });
       setSuccess('Registration successful! You can now log in.');
       alert('Registration successful! You can now log in.');
@@ -108,6 +116,53 @@ const Register = () => {
                       required
                     />
                   </div>
+                </div>
+
+                {/* New Patient Info Fields */}
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Date of Birth</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formData.dob}
+                      onChange={e => setFormData({ ...formData, dob: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Gender</label>
+                    <select
+                      className="form-control"
+                      value={formData.gender}
+                      onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                      required
+                    >
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label fw-bold">Address</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.address}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label fw-bold">Emergency Contact (optional)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.emergency_contact}
+                    onChange={e => setFormData({ ...formData, emergency_contact: e.target.value })}
+                  />
                 </div>
 
                 <div className="row">

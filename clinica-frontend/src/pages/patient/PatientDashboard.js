@@ -1,22 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import AppointmentForm from '../../components/appointments/AppointmentForm';
+import { appointmentService } from '../../services/appointmentService';
 
 const PatientDashboard = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingData, setBookingData] = useState({
-    doctorId: '',
-    date: '',
-    time: '',
-    concern: '',
-    paymentMethod: ''
-  });
-
-  // Fetch real data from backend
+  const [loading, setLoading] = useState(true);
   const [upcomingTeleconsults, setUpcomingTeleconsults] = useState([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [recentPrescriptions, setRecentPrescriptions] = useState([]);
-  const [doctors, setDoctors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Use your actual auth token and user id logic
   const token = localStorage.getItem('authToken');
@@ -25,15 +18,17 @@ const PatientDashboard = () => {
 
   useEffect(() => {
     setLoading(true);
+    setError('');
 
     // Fetch appointments for this patient
-    fetch(`/api/appointments?patient_id=${patientId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
+    appointmentService.getAppointments({ patient_id: patientId })
       .then(data => {
         setUpcomingAppointments(data.filter(a => a.type !== 'Teleconsultation'));
         setUpcomingTeleconsults(data.filter(a => a.type === 'Teleconsultation'));
+      })
+      .catch(err => {
+        console.error('Error fetching appointments:', err);
+        setError('Failed to load appointments. Please try again.');
       });
 
     // Fetch prescriptions for this patient
@@ -41,32 +36,41 @@ const PatientDashboard = () => {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => setRecentPrescriptions(data));
+      .then(data => setRecentPrescriptions(data))
+      .catch(err => {
+        console.error('Error fetching prescriptions:', err);
+        // Don't set main error for prescriptions as it's not critical
+      });
 
-    // Fetch doctors
-    fetch('/api/doctors', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => setDoctors(data))
-      .finally(() => setLoading(false));
+    setLoading(false);
   }, [token, patientId]);
 
-  const timeSlots = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'
-  ];
-
-  const handleBooking = (e) => {
-    e.preventDefault();
-    // Handle booking submission
-    console.log('Booking submitted:', bookingData);
+  const handleBookingModalClose = () => {
     setShowBookingModal(false);
+    // Refresh appointments after modal is closed
+    appointmentService.getAppointments({ patient_id: patientId })
+      .then(data => {
+        setUpcomingAppointments(data.filter(a => a.type !== 'Teleconsultation'));
+        setUpcomingTeleconsults(data.filter(a => a.type === 'Teleconsultation'));
+        setError(''); // Clear any previous errors
+      })
+      .catch(err => {
+        console.error('Error refreshing appointments:', err);
+        setError('Failed to refresh appointments. Please reload the page.');
+      });
   };
 
   if (loading) return <div>Loading...</div>;
 
   return (
     <div className="container-fluid py-4 bg-light">
+      {error && (
+        <div className="alert alert-danger mb-4">
+          <i className="bi bi-exclamation-triangle me-2"></i>
+          {error}
+        </div>
+      )}
+      
       <div className="row g-4">
         {/* Welcome Banner */}
         <div className="col-12">
@@ -273,116 +277,12 @@ const PatientDashboard = () => {
         </div>
       </div>
 
-      {/* Booking Modal */}
-      {showBookingModal && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content border-0 shadow-lg rounded-lg overflow-hidden">
-              <div className="modal-header border-0 bg-primary text-white">
-                <h5 className="modal-title fw-bold">Book Teleconsultation</h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setShowBookingModal(false)}></button>
-              </div>
-              <form onSubmit={handleBooking}>
-                <div className="modal-body p-4">
-                  <div className="mb-4">
-                    <label className="form-label fw-semibold">Select Doctor</label>
-                    <select 
-                      className="form-select form-select-lg border-0 shadow-sm"
-                      value={bookingData.doctorId}
-                      onChange={(e) => setBookingData({...bookingData, doctorId: e.target.value})}
-                      required
-                    >
-                      <option value="">Choose a doctor</option>
-                      {doctors.map(doctor => (
-                        <option key={doctor.id} value={doctor.id}>
-                          {doctor.name} - {doctor.specialization} (₱{doctor.fee})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="row mb-4">
-                    <div className="col-md-6 mb-3 mb-md-0">
-                      <label className="form-label fw-semibold">Date</label>
-                      <input
-                        type="date"
-                        className="form-control form-control-lg border-0 shadow-sm"
-                        min={new Date().toISOString().split('T')[0]}
-                        value={bookingData.date}
-                        onChange={(e) => setBookingData({...bookingData, date: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label fw-semibold">Time</label>
-                      <select 
-                        className="form-select form-select-lg border-0 shadow-sm"
-                        value={bookingData.time}
-                        onChange={(e) => setBookingData({...bookingData, time: e.target.value})}
-                        required
-                      >
-                        <option value="">Select time</option>
-                        {timeSlots.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="form-label fw-semibold">Reason for Consultation</label>
-                    <textarea
-                      className="form-control border-0 shadow-sm"
-                      rows="3"
-                      value={bookingData.concern}
-                      onChange={(e) => setBookingData({...bookingData, concern: e.target.value})}
-                      required
-                      placeholder="Please describe your symptoms or reason for consultation"
-                    ></textarea>
-                  </div>
-
-                  <div className="mb-2">
-                    <label className="form-label fw-semibold">Payment Method</label>
-                    <div className="row g-3">
-                      {['Credit Card', 'GCash', 'PayMaya'].map(method => (
-                        <div key={method} className="col-md-4">
-                          <div 
-                            className={`card h-100 border-0 shadow-sm p-3 text-center cursor-pointer ${
-                              bookingData.paymentMethod === method ? 'bg-primary bg-opacity-10' : ''
-                            }`}
-                            onClick={() => setBookingData({...bookingData, paymentMethod: method})}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            <i className={`bi bi-${
-                              method === 'Credit Card' ? 'credit-card' :
-                              method === 'GCash' ? 'wallet2' : 'phone'
-                            } fs-3 mb-2 ${bookingData.paymentMethod === method ? 'text-primary' : ''}`}></i>
-                            <h6 className={`mb-0 ${bookingData.paymentMethod === method ? 'text-primary' : ''}`}>{method}</h6>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer border-0 bg-light p-4">
-                  <button type="button" className="btn btn-lg btn-outline-secondary px-4 rounded-pill" onClick={() => setShowBookingModal(false)}>
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="btn btn-lg btn-primary px-4 rounded-pill"
-                    disabled={!bookingData.doctorId || !bookingData.date || !bookingData.time || !bookingData.concern || !bookingData.paymentMethod}
-                  >
-                    Confirm Booking {bookingData.doctorId && <span className="ms-1">
-                      (₱{doctors.find(d => d.id === Number(bookingData.doctorId))?.fee || 0})
-                    </span>}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Appointment Form Modal */}
+      <AppointmentForm 
+        isOpen={showBookingModal}
+        onSuccess={handleBookingModalClose}
+        onCancel={handleBookingModalClose}
+      />
     </div>
   );
 };

@@ -40,14 +40,17 @@ export function AuthProvider({ children }) {
     }
   }, [currentUser]);
 
-  const login = async ({ username, password }) => {
+  const login = async (data) => {
     setLoading(true);
     try {
       await getCsrfToken();
-
       // Get the XSRF token from cookies
       const xsrfToken = getCookie('XSRF-TOKEN');
-
+      // Accept either {login, password} or {username, password}
+      const payload = {
+        login: data.login || data.username,
+        password: data.password
+      };
       const response = await fetch(`${BASE_URL}/login`, {
         method: 'POST',
         headers: { 
@@ -56,26 +59,22 @@ export function AuthProvider({ children }) {
           'X-XSRF-TOKEN': decodeURIComponent(xsrfToken)
         },
         credentials: 'include',
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(payload)
       });
-      
       console.log('Response status:', response.status);
-      
       if (!response.ok) {
         const errorData = await response.json();
         console.log('Error response:', errorData);
         throw new Error(errorData.message || 'Login failed');
       }
-      
-      const data = await response.json();
-      console.log('Login successful:', data);
-      
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
+      const dataRes = await response.json();
+      console.log('Login successful:', dataRes);
+      if (dataRes.token) {
+        localStorage.setItem('authToken', dataRes.token);
       }
-      if (data.user) {
-        setCurrentUser(data.user);
-        return data;
+      if (dataRes.user) {
+        setCurrentUser(dataRes.user);
+        return dataRes;
       }
     } catch (error) {
       console.error('Login error:', error);

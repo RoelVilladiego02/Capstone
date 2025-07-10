@@ -30,8 +30,8 @@ const Dashboard = () => {
   };
 
   const getDashboardByRole = () => {
-    // Normalize role to remove spaces for matching
-    const normalizedRole = userRole.replace(/\s+/g, '');
+    // Ensure userRole is a string before calling replace
+    const normalizedRole = (userRole || '').replace(/\s+/g, '');
     switch(normalizedRole) {
       case 'Admin':
         return <AdminDashboard />;

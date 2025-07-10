@@ -5,7 +5,7 @@ import clinicaLogo from '../assets/clinica-laguna-logo.png';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    username: '',
+    login: '',
     password: ''
   });
   const [error, setError] = useState('');
@@ -23,17 +23,18 @@ const Login = () => {
     try {
       // Only send username and password
       const userData = await login({
-        username: formData.username,
+        login: formData.login,
         password: formData.password
       });
       // userData is { user: {...}, token: ... }
       const user = userData.user || userData;
-      setSuccess('Login successful! Redirecting...');
-      alert('Login successful!');
-      let dashboardPath = '/dashboard';
-      if (user && user.role) {
-        // Normalize role for path
-        const normalizedRole = user.role.replace(/\s+/g, '');
+      let dashboardPath = '/dashboard'; // Default path
+      let role = user.role;
+      if (!role && Array.isArray(user.roles) && user.roles.length > 0) {
+        role = user.roles[0];
+      }
+      if (role) {
+        const normalizedRole = role.replace(/\s+/g, '');
         const roleToPath = {
           'Admin': '/admin/dashboard',
           'Doctor': '/doctor/dashboard',
@@ -44,6 +45,8 @@ const Login = () => {
         };
         dashboardPath = roleToPath[normalizedRole] || '/dashboard';
       }
+      setSuccess('Login successful! Redirecting...');
+      alert('Login successful!');
       setTimeout(() => {
         navigate(dashboardPath);
       }, 500);
@@ -70,13 +73,13 @@ const Login = () => {
               
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label className="form-label fw-bold">Username</label>
+                  <label className="form-label fw-bold">Username or Email</label>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Enter your username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                    placeholder="Enter your username or email"
+                    value={formData.login}
+                    onChange={(e) => setFormData({...formData, login: e.target.value})}
                     required
                   />
                 </div>
