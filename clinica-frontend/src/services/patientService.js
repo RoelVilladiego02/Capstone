@@ -8,14 +8,35 @@ export const patientService = {
   },
 
   // Get a single patient by ID
-  getPatient: (id) => api.get(`/patients/${id}`),
+  getPatient: (id) => {
+    if (!id) {
+      throw new Error('Patient ID is required');
+    }
+    return api.get(`/patients/${id}`);
+  },
 
   // Get current user's patient profile
   getMyProfile: async () => {
-    console.log('Calling getMyProfile API');
-    const response = await api.get('/patients/me');
-    console.log('getMyProfile API response:', response);
-    return response;
+    try {
+      console.log('Calling getMyProfile API');
+      const response = await api.get('/patients/me');
+      console.log('getMyProfile API response:', response);
+      
+      // Validate the response structure
+      if (!response) {
+        throw new Error('No response received from /patients/me');
+      }
+      
+      // Check if we have a patient_id
+      if (!response.patient_id && !response.patient?.id) {
+        throw new Error('Patient ID not found in response');
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Error in getMyProfile:', error);
+      throw error;
+    }
   },
 
   // Create a new patient
