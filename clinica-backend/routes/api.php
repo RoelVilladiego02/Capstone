@@ -47,9 +47,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('patients', App\Http\Controllers\PatientController::class);
 
     // Medical Records
-    Route::apiResource('medical-records', App\Http\Controllers\MedicalRecordController::class);
-    Route::post('/medical-records/session', [App\Http\Controllers\MedicalRecordController::class, 'createFromSession']);
-    Route::put('/medical-records/{id}/session', [App\Http\Controllers\MedicalRecordController::class, 'updateFromSession']);
+    Route::get('/medical-records', [App\Http\Controllers\MedicalRecordController::class, 'index']);
+    Route::get('/medical-records/{id}', [App\Http\Controllers\MedicalRecordController::class, 'show']);
+    Route::post('/medical-records', [App\Http\Controllers\MedicalRecordController::class, 'store'])->middleware('medical.record.permission');
+    Route::put('/medical-records/{id}', [App\Http\Controllers\MedicalRecordController::class, 'update'])->middleware('medical.record.permission');
+    Route::delete('/medical-records/{id}', [App\Http\Controllers\MedicalRecordController::class, 'destroy'])->middleware('medical.record.permission');
+    Route::post('/medical-records/session', [App\Http\Controllers\MedicalRecordController::class, 'createFromSession'])->middleware('medical.record.permission');
+    Route::put('/medical-records/{id}/session', [App\Http\Controllers\MedicalRecordController::class, 'updateFromSession'])->middleware('medical.record.permission');
 
     // Billing
     Route::apiResource('billing', App\Http\Controllers\BillingController::class);
@@ -99,4 +103,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('permissions', App\Http\Controllers\PermissionController::class);
     Route::post('/permissions/{id}/assign-to-roles', [App\Http\Controllers\PermissionController::class, 'assignToRoles']);
     Route::post('/permissions/{id}/assign-to-users', [App\Http\Controllers\PermissionController::class, 'assignToUsers']);
+
+    // Correction Requests
+    Route::get('/correction-requests', [App\Http\Controllers\CorrectionRequestController::class, 'index']); // patient
+    Route::post('/correction-requests', [App\Http\Controllers\CorrectionRequestController::class, 'store']); // patient
+    Route::delete('/correction-requests/{id}', [App\Http\Controllers\CorrectionRequestController::class, 'destroy']); // patient
+    Route::put('/correction-requests/{id}', [App\Http\Controllers\CorrectionRequestController::class, 'update']); // admin
+    Route::get('/admin/correction-requests', [App\Http\Controllers\CorrectionRequestController::class, 'adminIndex']); // admin
+
+    // Personal Notes
+    Route::get('/personal-notes', [App\Http\Controllers\PersonalNoteController::class, 'index']); // patient
+    Route::post('/personal-notes', [App\Http\Controllers\PersonalNoteController::class, 'store']); // patient
+    Route::put('/personal-notes/{id}', [App\Http\Controllers\PersonalNoteController::class, 'update']); // patient
+    Route::delete('/personal-notes/{id}', [App\Http\Controllers\PersonalNoteController::class, 'destroy']); // patient
+
+    // Uploaded Documents
+    Route::get('/uploaded-documents', [App\Http\Controllers\UploadedDocumentController::class, 'index']); // patient
+    Route::post('/uploaded-documents', [App\Http\Controllers\UploadedDocumentController::class, 'store']); // patient
+    Route::delete('/uploaded-documents/{id}', [App\Http\Controllers\UploadedDocumentController::class, 'destroy']); // patient
+    Route::get('/admin/uploaded-documents', [App\Http\Controllers\UploadedDocumentController::class, 'adminIndex']); // admin
 });
