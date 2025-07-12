@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import { appointmentService } from '../../services/appointmentService';
 
@@ -7,6 +7,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     date: initialDate,
     time: initialTime,
     doctorId: '',
+    type: 'Walk-in', // Add appointment type
     concern: '',
     notes: '',
     paymentMethod: 'Cash',
@@ -90,9 +91,34 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     setAppointment(prev => ({
       ...prev,
       date: initialDate || prev.date,
-      time: initialTime || prev.time
+      time: initialTime || prev.time,
+      type: prev.type || 'Walk-in' // Preserve type when updating other fields
     }));
   }, [initialDate, initialTime]);
+
+  const checkAvailability = useCallback(async () => {
+    setAvailabilityLoading(true);
+    setAvailabilityError('');
+    
+    try {
+      const response = await appointmentService.checkAvailability(
+        appointment.date, 
+        appointment.time, 
+        appointment.doctorId
+      );
+      
+      setIsSlotAvailable(response.available);
+      if (!response.available) {
+        setAvailabilityError('This time slot is not available. Please choose a different time.');
+      }
+    } catch (err) {
+      console.error('Error checking availability:', err);
+      setAvailabilityError('Unable to check availability. Please try again.');
+      setIsSlotAvailable(false);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [appointment.date, appointment.time, appointment.doctorId]);
 
   // Check availability when date, time, or doctor changes
   useEffect(() => {
@@ -102,43 +128,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       setIsSlotAvailable(true);
       setAvailabilityError('');
     }
-  }, [appointment.date, appointment.time, appointment.doctorId]);
-
-  const checkAvailability = async () => {
-    setAvailabilityLoading(true);
-    setAvailabilityError('');
-    
-    try {
-      console.log('Checking availability for:', {
-        date: appointment.date,
-        time: appointment.time,
-        doctorId: appointment.doctorId
-      });
-      
-      const response = await appointmentService.checkAvailability(
-        appointment.date, 
-        appointment.time, 
-        appointment.doctorId
-      );
-      
-      console.log('Availability response:', response);
-      setIsSlotAvailable(response.available);
-      if (!response.available) {
-        setAvailabilityError('This time slot is not available. Please choose a different time.');
-      }
-    } catch (err) {
-      console.error('Error checking availability:', err);
-      console.error('Error details:', {
-        message: err.message,
-        response: err.response,
-        status: err.status
-      });
-      setAvailabilityError('Unable to check availability. Please try again.');
-      setIsSlotAvailable(false);
-    } finally {
-      setAvailabilityLoading(false);
-    }
-  };
+  }, [appointment.date, appointment.time, appointment.doctorId, checkAvailability]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -160,13 +150,13 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
 
     try {
       const appointmentData = {
-        patient_id: patientId,
+        patient_id: Number(patientId), // Ensure patient_id is a number
         doctor_id: parseInt(appointment.doctorId),
         date: appointment.date,
         time: appointment.time,
         concern: appointment.concern,
         notes: appointment.notes,
-        type: 'Walk-in',
+        type: appointment.type, // Use the selected type
         status: 'Scheduled'
       };
 
@@ -182,6 +172,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
         date: '',
         time: '',
         doctorId: '',
+        type: 'Walk-in',
         concern: '',
         notes: '',
         paymentMethod: 'Cash',
@@ -190,7 +181,8 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       // Call onSuccess callback after a short delay to show success message
       setTimeout(() => {
         if (onSuccess) {
-          onSuccess();
+          // Pass the new appointment data back to the parent component
+          onSuccess(response);
         }
       }, 1500);
       
@@ -216,6 +208,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       date: initialDate,
       time: initialTime,
       doctorId: '',
+      type: 'Walk-in',
       concern: '',
       notes: '',
       paymentMethod: 'Cash',
@@ -240,6 +233,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     return appointment.date && 
            appointment.time && 
            appointment.doctorId && 
+           appointment.type &&
            appointment.concern && 
            appointment.concern.trim().length > 0;
   };
@@ -329,6 +323,18 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
                           {doctor.name} {doctor.specialty ? `- ${doctor.specialty}` : ''}
                         </option>
                       ))}
+                    </select>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Appointment Type <span className="text-danger">*</span></label>
+                    <select
+                      className="form-select"
+                      value={appointment.type}
+                      onChange={(e) => setAppointment({...appointment, type: e.target.value})}
+                      required
+                    >
+                      <option value="Walk-in">Walk-in</option>
+                      <option value="Teleconsultation">Teleconsultation</option>
                     </select>
                   </div>
                   <div className="col-md-6">
@@ -432,4 +438,4 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
   );
 };
 
-export default AppointmentForm; 
+export default AppointmentForm;

@@ -2,9 +2,12 @@ import { api } from './api';
 
 export const appointmentService = {
   // Get all appointments or filter by params (e.g., patient_id, doctor_id, type, date)
-  getAppointments: (params = {}) => {
+  getAppointments: async (params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return api.get(`/appointments${query ? `?${query}` : ''}`);
+    console.log('Calling appointments API with params:', params);
+    const response = await api.get(`/appointments${query ? `?${query}` : ''}`);
+    console.log('Appointments API response:', response);
+    return response;
   },
 
   // Get a single appointment by ID
@@ -29,6 +32,16 @@ export const appointmentService = {
     const query = new URLSearchParams(params).toString();
     const endpoint = `/appointments/check-availability?${query}`;
     console.log('Calling availability endpoint:', endpoint);
+    return api.get(endpoint);
+  },
+
+  // Check if a patient already has an appointment on a specific date
+  checkPatientDateAvailability: (patientId, date, appointmentId = null) => {
+    const params = { patient_id: patientId, date };
+    if (appointmentId) params.appointment_id = appointmentId;
+    const query = new URLSearchParams(params).toString();
+    const endpoint = `/appointments/check-patient-date?${query}`;
+    console.log('Calling patient date availability endpoint:', endpoint);
     return api.get(endpoint);
   },
 
