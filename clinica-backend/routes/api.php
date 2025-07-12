@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Appointments - Place specific routes before resource routes
     Route::get('/appointments/check-availability', [App\Http\Controllers\AppointmentController::class, 'checkAvailability']);
+    Route::get('/appointments/check-patient-date', [App\Http\Controllers\AppointmentController::class, 'checkPatientDateAvailability']);
     Route::apiResource('appointments', App\Http\Controllers\AppointmentController::class);
     Route::post('/appointments/{id}/check-in', [App\Http\Controllers\AppointmentController::class, 'checkIn']);
     Route::get('/doctors/{doctorId}/appointments', [App\Http\Controllers\AppointmentController::class, 'doctorAppointments']);

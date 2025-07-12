@@ -55,12 +55,19 @@ class PatientController extends Controller
     {
         $user = $request->user();
         $patient = \App\Models\Patient::where('user_id', $user->id)->first();
-        $db = \DB::connection()->getDatabaseName();
+        
+        if (!$patient) {
+            return response()->json([
+                'error' => 'Patient profile not found',
+                'patient_id' => null
+            ], 404);
+        }
+        
         return response()->json([
+            'patient_id' => $patient->id,
             'user_id' => $user->id,
             'user' => $user,
-            'patient' => $patient,
-            'database' => $db
+            'patient' => $patient
         ]);
     }
 }

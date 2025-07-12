@@ -15,7 +15,7 @@ class Appointment extends Model
 
     protected $casts = [
         'date' => 'date',
-        'time' => 'datetime',
+        'time' => 'string',
         'check_in_time' => 'datetime',
     ];
 

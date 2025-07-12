@@ -10,7 +10,7 @@ class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Appointment::query();
+        $query = Appointment::with(['patient.user', 'doctor']);
         if ($request->has('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
         }
@@ -23,18 +23,54 @@ class AppointmentController extends Controller
         if ($request->has('date')) {
             $query->where('date', $request->input('date'));
         }
-        return $query->get();
+        
+        $appointments = $query->get();
+        
+        // Transform the data to include doctor name and other required fields
+        return $appointments->map(function ($appointment) {
+            return [
+                'id' => $appointment->id,
+                'patient_id' => $appointment->patient_id,
+                'doctor_id' => $appointment->doctor_id,
+                'date' => $appointment->date,
+                'time' => $appointment->time,
+                'status' => $appointment->status,
+                'type' => $appointment->type,
+                'concern' => $appointment->concern,
+                'check_in_time' => $appointment->check_in_time,
+                'doctor' => $appointment->doctor ? $appointment->doctor->name : 'Doctor TBD',
+                'patient' => $appointment->patient ? $appointment->patient->user->name : 'Unknown Patient',
+                'created_at' => $appointment->created_at,
+                'updated_at' => $appointment->updated_at,
+            ];
+        });
     }
 
     public function show($id)
     {
-        return Appointment::findOrFail($id);
+        $appointment = Appointment::with(['patient.user', 'doctor'])->findOrFail($id);
+        
+        return [
+            'id' => $appointment->id,
+            'patient_id' => $appointment->patient_id,
+            'doctor_id' => $appointment->doctor_id,
+            'date' => $appointment->date,
+            'time' => $appointment->time,
+            'status' => $appointment->status,
+            'type' => $appointment->type,
+            'concern' => $appointment->concern,
+            'check_in_time' => $appointment->check_in_time,
+            'doctor' => $appointment->doctor ? $appointment->doctor->name : 'Doctor TBD',
+            'patient' => $appointment->patient ? $appointment->patient->user->name : 'Unknown Patient',
+            'created_at' => $appointment->created_at,
+            'updated_at' => $appointment->updated_at,
+        ];
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'patient_id' => 'required|exists:users,id',
+            'patient_id' => 'required|exists:patients,id',
             'doctor_id' => 'required|exists:users,id',
             'date' => 'required|date',
             'time' => 'required',
@@ -55,16 +91,15 @@ class AppointmentController extends Controller
             ]);
         }
 
-        // Check if the patient already has an appointment on the same date and time
+        // Check if the patient already has an appointment on the same date (one appointment per day limit)
         $patientExistingAppointment = Appointment::where('patient_id', $validated['patient_id'])
             ->where('date', $validated['date'])
-            ->where('time', $validated['time'])
             ->where('status', '!=', 'Cancelled')
             ->first();
 
         if ($patientExistingAppointment) {
             throw ValidationException::withMessages([
-                'time' => ['You already have an appointment at this time.']
+                'date' => ['You already have an appointment scheduled for this date. Only one appointment per day is allowed.']
             ]);
         }
 
@@ -81,14 +116,33 @@ class AppointmentController extends Controller
             ]);
         }
 
-        return Appointment::create($validated);
+        $appointment = Appointment::create($validated);
+        
+        // Load the created appointment with relationships
+        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor'])->find($appointment->id);
+        
+        return [
+            'id' => $appointmentWithRelations->id,
+            'patient_id' => $appointmentWithRelations->patient_id,
+            'doctor_id' => $appointmentWithRelations->doctor_id,
+            'date' => $appointmentWithRelations->date,
+            'time' => $appointmentWithRelations->time,
+            'status' => $appointmentWithRelations->status,
+            'type' => $appointmentWithRelations->type,
+            'concern' => $appointmentWithRelations->concern,
+            'check_in_time' => $appointmentWithRelations->check_in_time,
+            'doctor' => $appointmentWithRelations->doctor ? $appointmentWithRelations->doctor->name : 'Doctor TBD',
+            'patient' => $appointmentWithRelations->patient ? $appointmentWithRelations->patient->user->name : 'Unknown Patient',
+            'created_at' => $appointmentWithRelations->created_at,
+            'updated_at' => $appointmentWithRelations->updated_at,
+        ];
     }
 
     public function update(Request $request, $id)
     {
         $appointment = Appointment::findOrFail($id);
         $validated = $request->validate([
-            'patient_id' => 'sometimes|exists:users,id',
+            'patient_id' => 'sometimes|exists:patients,id',
             'doctor_id' => 'sometimes|exists:users,id',
             'date' => 'sometimes|date',
             'time' => 'sometimes',
@@ -117,6 +171,19 @@ class AppointmentController extends Controller
                 ]);
             }
 
+            // Check if the patient already has another appointment on the same date (one appointment per day limit)
+            $patientExistingAppointment = Appointment::where('patient_id', $checkPatientId)
+                ->where('date', $checkDate)
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'Cancelled')
+                ->first();
+
+            if ($patientExistingAppointment) {
+                throw ValidationException::withMessages([
+                    'date' => ['You already have an appointment scheduled for this date. Only one appointment per day is allowed.']
+                ]);
+            }
+
             // Check if the doctor is available
             $doctorBusy = Appointment::where('doctor_id', $checkDoctorId)
                 ->where('date', $checkDate)
@@ -133,7 +200,25 @@ class AppointmentController extends Controller
         }
 
         $appointment->update($validated);
-        return $appointment;
+        
+        // Load the updated appointment with relationships
+        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor'])->find($appointment->id);
+        
+        return [
+            'id' => $appointmentWithRelations->id,
+            'patient_id' => $appointmentWithRelations->patient_id,
+            'doctor_id' => $appointmentWithRelations->doctor_id,
+            'date' => $appointmentWithRelations->date,
+            'time' => $appointmentWithRelations->time,
+            'status' => $appointmentWithRelations->status,
+            'type' => $appointmentWithRelations->type,
+            'concern' => $appointmentWithRelations->concern,
+            'check_in_time' => $appointmentWithRelations->check_in_time,
+            'doctor' => $appointmentWithRelations->doctor ? $appointmentWithRelations->doctor->name : 'Doctor TBD',
+            'patient' => $appointmentWithRelations->patient ? $appointmentWithRelations->patient->user->name : 'Unknown Patient',
+            'created_at' => $appointmentWithRelations->created_at,
+            'updated_at' => $appointmentWithRelations->updated_at,
+        ];
     }
 
     public function destroy($id)
@@ -291,6 +376,59 @@ class AppointmentController extends Controller
         return response()->json([
             'available' => $isAvailable,
             'message' => $isAvailable ? 'Time slot is available' : 'Time slot is already booked'
+        ]);
+    }
+
+    /**
+     * Check if a patient already has an appointment on a specific date
+     */
+    public function checkPatientDateAvailability(Request $request)
+    {
+        \Log::info('Patient date availability check requested', $request->all());
+        
+        $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'date' => 'required|date',
+            'appointment_id' => 'nullable|exists:appointments,id', // For updates, exclude current appointment
+        ]);
+
+        $query = Appointment::where('patient_id', $request->patient_id)
+            ->where('date', $request->date)
+            ->where('status', '!=', 'Cancelled');
+
+        // If updating an appointment, exclude the current appointment from the check
+        if ($request->has('appointment_id')) {
+            $query->where('id', '!=', $request->appointment_id);
+        }
+
+        $existingAppointment = $query->first();
+        $hasAppointment = $existingAppointment !== null;
+        
+        \Log::info('Patient date availability check result', [
+            'patient_id' => $request->patient_id,
+            'date' => $request->date,
+            'appointment_id' => $request->appointment_id,
+            'has_appointment' => $hasAppointment,
+            'existing_appointment' => $existingAppointment ? [
+                'id' => $existingAppointment->id,
+                'time' => $existingAppointment->time,
+                'type' => $existingAppointment->type,
+                'status' => $existingAppointment->status
+            ] : null
+        ]);
+
+        return response()->json([
+            'has_appointment' => $hasAppointment,
+            'available' => !$hasAppointment,
+            'message' => $hasAppointment 
+                ? 'You already have an appointment scheduled for this date. Only one appointment per day is allowed.' 
+                : 'Date is available for booking',
+            'existing_appointment' => $existingAppointment ? [
+                'id' => $existingAppointment->id,
+                'time' => $existingAppointment->time,
+                'type' => $existingAppointment->type,
+                'status' => $existingAppointment->status
+            ] : null
         ]);
     }
 }
