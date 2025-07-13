@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Prescriptions
     Route::apiResource('prescriptions', App\Http\Controllers\PrescriptionController::class);
+    Route::post('/prescriptions/{id}/refill', [App\Http\Controllers\PrescriptionController::class, 'requestRefill']);
 
     // Analytics
     Route::get('/analytics/summary', [App\Http\Controllers\AnalyticsController::class, 'summary']);

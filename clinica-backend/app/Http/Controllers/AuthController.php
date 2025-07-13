@@ -21,6 +21,7 @@ class AuthController extends Controller
 
         $user = User::where('username', $credentials['login'])
             ->orWhere('email', $credentials['login'])
+            ->with(['roles', 'patient'])
             ->first();
 
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
@@ -29,15 +30,23 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Prepare user data
+        $userData = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'username' => $user->username,
+            'phone_number' => $user->phone_number,
+            'email' => $user->email,
+            'roles' => $user->roles->pluck('name'),
+        ];
+
+        // Add patient_id if user is a patient
+        if ($user->patient) {
+            $userData['patient_id'] = $user->patient->id;
+        }
+
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'username' => $user->username,
-                'phone_number' => $user->phone_number,
-                'email' => $user->email,
-                'roles' => $user->roles->pluck('name'),
-            ],
+            'user' => $userData,
             'token' => $token
         ]);
     }
@@ -77,7 +86,7 @@ class AuthController extends Controller
         }
 
         // Create a Patient record for this user
-        \App\Models\Patient::create([
+        $patient = \App\Models\Patient::create([
             'user_id' => $user->id,
             'dob' => $request->input('dob'), // nullable, or set a default if needed
             'gender' => $request->input('gender'), // nullable, or set a default if needed
@@ -96,6 +105,7 @@ class AuthController extends Controller
                 'phone_number' => $user->phone_number,
                 'email' => $user->email,
                 'roles' => $user->roles->pluck('name'),
+                'patient_id' => $patient->id,
             ],
             'token' => $token
         ], 201);
