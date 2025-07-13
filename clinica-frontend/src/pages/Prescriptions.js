@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { prescriptionService } from '../services/prescriptionService';
 import { patientService } from '../services/patientService';
 import { extractPatientId } from '../utils/patientUtils';
@@ -38,14 +38,9 @@ const Prescriptions = () => {
     fetchPatientId();
   }, []);
 
-  // Fetch prescriptions when patientId is available
-  useEffect(() => {
-    if (patientId) {
-      fetchPrescriptions();
-    }
-  }, [patientId]);
-
-  const fetchPrescriptions = async () => {
+  const fetchPrescriptions = useCallback(async () => {
+    if (!patientId) return;
+    
     try {
       setLoading(true);
       console.log('Fetching prescriptions for patient ID:', patientId);
@@ -72,7 +67,14 @@ const Prescriptions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId]);
+
+  // Fetch prescriptions when patientId is available
+  useEffect(() => {
+    if (patientId) {
+      fetchPrescriptions();
+    }
+  }, [patientId, fetchPrescriptions]);
 
   const filteredPrescriptions = prescriptions.filter(
     presc => activeTab === 'all' || 

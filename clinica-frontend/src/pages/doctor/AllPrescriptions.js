@@ -19,8 +19,7 @@ const AllPrescriptions = () => {
     status: 'Active'
   });
 
-  // Get auth token and doctor ID
-  const token = localStorage.getItem('authToken');
+  // Get doctor ID from current user
   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
   const doctorId = currentUser?.id;
 

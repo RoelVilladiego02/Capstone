@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AppointmentForm from './AppointmentForm';
 import { appointmentService } from '../../services/appointmentService';
 import { patientService } from '../../services/patientService';
-import { extractPatientId, normalizeAppointment, normalizeTime, comparePatientIds } from '../../utils/patientUtils';
+import { extractPatientId, normalizeAppointment, normalizeTime } from '../../utils/patientUtils';
 
 function combineDateAndTime(dateStr, timeStr) {
   // Handles ISO date string and HH:mm time string
@@ -17,15 +17,11 @@ function combineDateAndTime(dateStr, timeStr) {
 const MyAppointments = () => {
   const [currentView, setCurrentView] = useState('upcoming'); // 'upcoming', 'calendar', 'past'
   const [appointments, setAppointments] = useState([]);
-  const [allAppointments, setAllAppointments] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [selectedTime, setSelectedTime] = useState('');
-  const [loadingStates, setLoadingStates] = useState({});
   const [patientId, setPatientId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Fetch patient id from /patients/me on mount
   useEffect(() => {
@@ -122,7 +118,6 @@ const MyAppointments = () => {
     console.log('Booking successful, new appointment:', newAppointment);
     
     setShowForm(false);
-    setLoadingStates({});
     setError('');
     
     const message = `Appointment successfully booked for ${newAppointment.date} at ${normalizeTime(newAppointment.time)}!`;
@@ -196,7 +191,6 @@ const MyAppointments = () => {
   const AppointmentCard = ({ appointment, isUpcoming = true }) => {
     const appointmentDate = new Date(`${appointment.date} ${appointment.time}`);
     const isToday = appointmentDate.toDateString() === new Date().toDateString();
-    const isPast = appointmentDate < new Date();
 
     return (
       <div className={`card mb-3 border-0 shadow-sm ${isToday ? 'border-primary' : ''}`}>
@@ -432,8 +426,6 @@ const MyAppointments = () => {
           onSuccess={handleBookingSuccess}
           onCancel={() => {
             setShowForm(false);
-            setSelectedTime('');
-            setLoadingStates({});
             setSuccessMessage('');
           }}
         />
