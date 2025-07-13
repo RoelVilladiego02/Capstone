@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { prescriptionService } from '../../services/prescriptionService';
 
 const AllPrescriptions = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,17 +30,14 @@ const AllPrescriptions = () => {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/prescriptions', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await prescriptionService.getByDoctor(doctorId);
       
       // Transform the data to match the expected format
       const transformedPrescriptions = data.map(prescription => ({
         id: prescription.id,
         patientName: prescription.patient?.user?.name || 'Unknown',
         patientId: prescription.patient_id,
-        date: prescription.prescribed_date,
+        date: prescription.date,
         diagnosis: prescription.diagnosis,
         medications: prescription.medications || [],
         status: prescription.status || 'Active',
@@ -53,7 +51,7 @@ const AllPrescriptions = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, doctorId]);
+  }, [doctorId]);
 
   useEffect(() => {
     fetchPrescriptions();
@@ -96,36 +94,25 @@ const AllPrescriptions = () => {
       const prescriptionData = {
         patient_id: newPrescription.patientId,
         doctor_id: doctorId,
-        prescribed_date: newPrescription.date,
+        date: newPrescription.date,
         diagnosis: newPrescription.diagnosis,
         medications: newPrescription.medications,
         notes: newPrescription.notes,
         status: newPrescription.status
       };
 
-      const response = await fetch('/api/prescriptions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(prescriptionData)
+      const newPrescriptionWithId = await prescriptionService.create(prescriptionData);
+      setPrescriptions([newPrescriptionWithId, ...prescriptions]);
+      setShowAddModal(false);
+      setNewPrescription({
+        patientName: '',
+        patientId: '',
+        date: new Date().toISOString().split('T')[0],
+        diagnosis: '',
+        medications: [{ name: '', dosage: '', frequency: '', duration: '' }],
+        notes: '',
+        status: 'Active'
       });
-
-      if (response.ok) {
-        const newPrescriptionWithId = await response.json();
-        setPrescriptions([newPrescriptionWithId, ...prescriptions]);
-        setShowAddModal(false);
-        setNewPrescription({
-          patientName: '',
-          patientId: '',
-          date: new Date().toISOString().split('T')[0],
-          diagnosis: '',
-          medications: [{ name: '', dosage: '', frequency: '', duration: '' }],
-          notes: '',
-          status: 'Active'
-        });
-      }
     } catch (error) {
       console.error('Error saving prescription:', error);
     }
@@ -318,7 +305,7 @@ const AllPrescriptions = () => {
 
                 <div className="mb-3">
                   <h6 className="text-muted mb-3">Notes</h6>
-                  <p className="mb-0">{selectedPrescription.notes}</p>
+                  <p className="mb-0">{selectedPrescription.notes || 'No notes available'}</p>
                 </div>
               </div>
               <div className="modal-footer">

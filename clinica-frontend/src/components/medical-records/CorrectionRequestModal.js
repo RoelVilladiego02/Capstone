@@ -18,9 +18,12 @@ const CorrectionRequestModal = ({ show, onClose }) => {
     setError(null);
     try {
       const res = await correctionRequestService.getMyRequests();
-      setRequests(res.data);
+      console.log('Correction requests response:', res);
+      setRequests(Array.isArray(res) ? res : []);
     } catch (err) {
-      setError('Failed to load requests');
+      console.error('Error fetching correction requests:', err);
+      setError('Failed to load requests: ' + (err.message || 'Unknown error'));
+      setRequests([]);
     } finally {
       setLoading(false);
     }

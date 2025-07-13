@@ -20,9 +20,11 @@ const UploadedDocumentModal = ({ show, onClose }) => {
     setError(null);
     try {
       const res = await uploadedDocumentService.getMyDocuments();
-      setDocuments(Array.isArray(res.data) ? res.data : []);
+      console.log('Uploaded documents response:', res);
+      setDocuments(Array.isArray(res) ? res : []);
     } catch (err) {
-      setError('Failed to load documents');
+      console.error('Error fetching uploaded documents:', err);
+      setError('Failed to load documents: ' + (err.message || 'Unknown error'));
       setDocuments([]);
     } finally {
       setLoading(false);

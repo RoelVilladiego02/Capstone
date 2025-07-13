@@ -20,9 +20,12 @@ const PersonalNoteModal = ({ show, onClose }) => {
     setError(null);
     try {
       const res = await personalNoteService.getMyNotes();
-      setNotes(res.data);
+      console.log('Personal notes response:', res);
+      setNotes(Array.isArray(res) ? res : []);
     } catch (err) {
-      setError('Failed to load notes');
+      console.error('Error fetching personal notes:', err);
+      setError('Failed to load notes: ' + (err.message || 'Unknown error'));
+      setNotes([]);
     } finally {
       setLoading(false);
     }

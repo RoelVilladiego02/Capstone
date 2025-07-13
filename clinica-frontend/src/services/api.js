@@ -22,6 +22,8 @@ function getCookie(name) {
 // Base API request function
 const apiRequest = async (endpoint, options = {}) => {
   try {
+    console.log(`Making API request to: ${BASE_URL}${endpoint}`, options);
+    
     // Get CSRF token for non-GET requests
     if (options.method && options.method !== 'GET') {
       await getCsrfToken();
@@ -40,22 +42,37 @@ const apiRequest = async (endpoint, options = {}) => {
       };
     }
 
+    // Don't set Content-Type for FormData (browser will set it automatically with boundary)
+    const headers = {
+      'Accept': 'application/json',
+      ...options.headers
+    };
+
+    // Only set Content-Type for JSON data
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    console.log('Request headers:', headers);
+
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...options.headers
-      },
+      headers,
       credentials: 'include'
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('API error response:', errorData);
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('API response data:', data);
+    return data;
   } catch (error) {
     console.error('API request failed:', error);
     throw error;
@@ -64,7 +81,13 @@ const apiRequest = async (endpoint, options = {}) => {
 
 export const api = {
   get: (endpoint) => apiRequest(endpoint),
-  post: (endpoint, data) => apiRequest(endpoint, { method: 'POST', body: JSON.stringify(data) }),
-  put: (endpoint, data) => apiRequest(endpoint, { method: 'PUT', body: JSON.stringify(data) }),
+  post: (endpoint, data) => {
+    const body = data instanceof FormData ? data : JSON.stringify(data);
+    return apiRequest(endpoint, { method: 'POST', body });
+  },
+  put: (endpoint, data) => {
+    const body = data instanceof FormData ? data : JSON.stringify(data);
+    return apiRequest(endpoint, { method: 'PUT', body });
+  },
   delete: (endpoint) => apiRequest(endpoint, { method: 'DELETE' })
 }; 
