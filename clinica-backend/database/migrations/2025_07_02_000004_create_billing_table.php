@@ -11,8 +11,12 @@ return new class extends Migration
         Schema::create('bills', function (Blueprint $table) {
             $table->id();
             $table->foreignId('patient_id')->constrained('patients');
+            $table->foreignId('doctor_id')->nullable()->constrained('users');
+            $table->string('receipt_no')->unique();
+            $table->string('type')->nullable();
             $table->decimal('amount', 10, 2);
             $table->string('status');
+            $table->string('payment_method')->nullable();
             $table->date('due_date');
             $table->date('paid_at')->nullable();
             $table->string('description')->nullable();

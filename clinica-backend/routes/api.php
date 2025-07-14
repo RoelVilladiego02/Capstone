@@ -36,6 +36,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Appointments - Place specific routes before resource routes
     Route::get('/appointments/check-availability', [App\Http\Controllers\AppointmentController::class, 'checkAvailability']);
     Route::get('/appointments/check-patient-date', [App\Http\Controllers\AppointmentController::class, 'checkPatientDateAvailability']);
+    Route::post('/appointments/check-patient-doctor-time-conflict', [
+        App\Http\Controllers\AppointmentController::class, 'checkPatientDoctorTimeConflict'
+    ]);
+    Route::post('/appointments/check-patient-time-conflict', [
+        App\Http\Controllers\AppointmentController::class, 'checkPatientTimeConflict'
+    ]);
     Route::apiResource('appointments', App\Http\Controllers\AppointmentController::class);
     Route::post('/appointments/{id}/check-in', [App\Http\Controllers\AppointmentController::class, 'checkIn']);
     Route::get('/doctors/{doctorId}/appointments', [App\Http\Controllers\AppointmentController::class, 'doctorAppointments']);
@@ -56,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/medical-records/{id}/session', [App\Http\Controllers\MedicalRecordController::class, 'updateFromSession'])->middleware('medical.record.permission');
 
     // Billing
+    Route::get('/billing/my-bills', [App\Http\Controllers\BillingController::class, 'myBills']);
     Route::apiResource('billing', App\Http\Controllers\BillingController::class);
 
     // Inventory

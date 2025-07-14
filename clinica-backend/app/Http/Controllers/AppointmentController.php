@@ -74,15 +74,16 @@ class AppointmentController extends Controller
             'doctor_id' => 'required|exists:users,id',
             'date' => 'required|date',
             'time' => 'required',
-            'status' => 'required|string',
+            'status' => 'required|string', // Accept status from request
             'type' => 'required|string',
             'concern' => 'nullable|string',
+            'payment_method' => 'nullable|string',
         ]);
 
-        // Check if there's already an appointment at the same date and time
+        // Check if there's already a SCHEDULED appointment at the same date and time
         $existingAppointment = Appointment::where('date', $validated['date'])
             ->where('time', $validated['time'])
-            ->where('status', '!=', 'Cancelled') // Don't count cancelled appointments
+            ->where('status', 'Scheduled') // Only block if already scheduled
             ->first();
 
         if ($existingAppointment) {
@@ -91,23 +92,48 @@ class AppointmentController extends Controller
             ]);
         }
 
-        // Check if the patient already has an appointment on the same date (one appointment per day limit)
+        // Check if the patient already has a SCHEDULED appointment on the same date (one per day)
         $patientExistingAppointment = Appointment::where('patient_id', $validated['patient_id'])
             ->where('date', $validated['date'])
-            ->where('status', '!=', 'Cancelled')
+            ->where('status', 'Scheduled')
             ->first();
 
         if ($patientExistingAppointment) {
             throw ValidationException::withMessages([
-                'date' => ['You already have an appointment scheduled for this date. Only one appointment per day is allowed.']
+                'date' => ['You already have a scheduled appointment for this date. Only one scheduled appointment per day is allowed.']
             ]);
         }
 
-        // Check if the doctor is available at the requested time
-        $doctorBusy = Appointment::where('doctor_id', $validated['doctor_id'])
+        // Restrict: Patient cannot have multiple appointments (any status except Cancelled) for the same doctor/date/time
+        $duplicate = Appointment::where('patient_id', $validated['patient_id'])
+            ->where('doctor_id', $validated['doctor_id'])
             ->where('date', $validated['date'])
             ->where('time', $validated['time'])
             ->where('status', '!=', 'Cancelled')
+            ->first();
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'time' => ['You already have an appointment with this doctor at this date and time.']
+            ]);
+        }
+
+        // Restrict: Patient cannot have multiple appointments (any status except Cancelled) at the same date and time, regardless of doctor
+        $sameTime = Appointment::where('patient_id', $validated['patient_id'])
+            ->where('date', $validated['date'])
+            ->where('time', $validated['time'])
+            ->where('status', '!=', 'Cancelled')
+            ->first();
+        if ($sameTime) {
+            throw ValidationException::withMessages([
+                'time' => ['You already have an appointment at this date and time.']
+            ]);
+        }
+
+        // Check if the doctor is SCHEDULED at the requested time
+        $doctorBusy = Appointment::where('doctor_id', $validated['doctor_id'])
+            ->where('date', $validated['date'])
+            ->where('time', $validated['time'])
+            ->where('status', 'Scheduled')
             ->first();
 
         if ($doctorBusy) {
@@ -162,7 +188,7 @@ class AppointmentController extends Controller
             $existingAppointment = Appointment::where('date', $checkDate)
                 ->where('time', $checkTime)
                 ->where('id', '!=', $id)
-                ->where('status', '!=', 'Cancelled')
+                ->where('status', 'Scheduled') // Only block if already scheduled
                 ->first();
 
             if ($existingAppointment) {
@@ -175,12 +201,39 @@ class AppointmentController extends Controller
             $patientExistingAppointment = Appointment::where('patient_id', $checkPatientId)
                 ->where('date', $checkDate)
                 ->where('id', '!=', $id)
-                ->where('status', '!=', 'Cancelled')
+                ->where('status', 'Scheduled')
                 ->first();
 
             if ($patientExistingAppointment) {
                 throw ValidationException::withMessages([
-                    'date' => ['You already have an appointment scheduled for this date. Only one appointment per day is allowed.']
+                    'date' => ['You already have a scheduled appointment for this date. Only one scheduled appointment per day is allowed.']
+                ]);
+            }
+
+            // Restrict: Patient cannot have multiple appointments (any status except Cancelled) for the same doctor/date/time
+            $duplicate = Appointment::where('patient_id', $checkPatientId)
+                ->where('doctor_id', $checkDoctorId)
+                ->where('date', $checkDate)
+                ->where('time', $checkTime)
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'Cancelled')
+                ->first();
+            if ($duplicate) {
+                throw ValidationException::withMessages([
+                    'time' => ['You already have an appointment with this doctor at this date and time.']
+                ]);
+            }
+
+            // Restrict: Patient cannot have multiple appointments (any status except Cancelled) at the same date and time, regardless of doctor
+            $sameTime = Appointment::where('patient_id', $checkPatientId)
+                ->where('date', $checkDate)
+                ->where('time', $checkTime)
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'Cancelled')
+                ->first();
+            if ($sameTime) {
+                throw ValidationException::withMessages([
+                    'time' => ['You already have an appointment at this date and time.']
                 ]);
             }
 
@@ -189,7 +242,7 @@ class AppointmentController extends Controller
                 ->where('date', $checkDate)
                 ->where('time', $checkTime)
                 ->where('id', '!=', $id)
-                ->where('status', '!=', 'Cancelled')
+                ->where('status', 'Scheduled')
                 ->first();
 
             if ($doctorBusy) {
@@ -358,7 +411,7 @@ class AppointmentController extends Controller
 
         $query = Appointment::where('date', $request->date)
             ->where('time', $request->time)
-            ->where('status', '!=', 'Cancelled');
+            ->where('status', 'Scheduled'); // Only block if already scheduled
 
         if ($request->has('doctor_id')) {
             $query->where('doctor_id', $request->doctor_id);
@@ -429,6 +482,54 @@ class AppointmentController extends Controller
                 'type' => $existingAppointment->type,
                 'status' => $existingAppointment->status
             ] : null
+        ]);
+    }
+
+    /**
+     * Check if a patient already has an appointment with a doctor at a specific date and time
+     */
+    public function checkPatientDoctorTimeConflict(Request $request)
+    {
+        $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'doctor_id' => 'required|exists:users,id',
+            'date' => 'required|date',
+            'time' => 'required',
+        ]);
+
+        $conflict = Appointment::where('patient_id', $request->patient_id)
+            ->where('doctor_id', $request->doctor_id)
+            ->where('date', $request->date)
+            ->where('time', $request->time)
+            ->where('status', '!=', 'Cancelled')
+            ->exists();
+
+        return response()->json([
+            'conflict' => $conflict,
+            'message' => $conflict ? 'You already have an appointment with this doctor at this date and time.' : 'No conflict.'
+        ]);
+    }
+
+    /**
+     * Check if a patient already has any appointment at a specific date and time (any status except Cancelled, regardless of doctor)
+     */
+    public function checkPatientTimeConflict(Request $request)
+    {
+        $request->validate([
+            'patient_id' => 'required|exists:patients,id',
+            'date' => 'required|date',
+            'time' => 'required',
+        ]);
+
+        $conflict = Appointment::where('patient_id', $request->patient_id)
+            ->where('date', $request->date)
+            ->where('time', $request->time)
+            ->where('status', '!=', 'Cancelled')
+            ->exists();
+
+        return response()->json([
+            'conflict' => $conflict,
+            'message' => $conflict ? 'You already have an appointment at this date and time.' : 'No conflict.'
         ]);
     }
 }
