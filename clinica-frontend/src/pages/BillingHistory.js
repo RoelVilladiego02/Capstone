@@ -1,108 +1,181 @@
-import React, { useState, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { billingService } from '../services/billingService';
 import { useReactToPrint } from 'react-to-print';
+import { format } from 'date-fns';
+import PaymentGatewayModal from '../components/appointments/PaymentGatewayModal';
+import { appointmentService } from '../services/appointmentService';
 
 const BillingHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [showViewModal, setShowViewModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const printComponentRef = useRef();
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [billingSummary, setBillingSummary] = useState({
+    totalPending: 0,
+    totalPaid: 0,
+    totalOverdue: 0,
+    totalBills: 0
+  });
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [billToPay, setBillToPay] = useState(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictAppointmentId, setConflictAppointmentId] = useState(null);
+  const [conflictMessage] = useState('');
+  const [showCancelledModal, setShowCancelledModal] = useState(false);
+  const [cancelledMessage, setCancelledMessage] = useState('');
 
   const handlePrint = useReactToPrint({
     content: () => printComponentRef.current,
-    documentTitle: `Bill-${selectedBill?.receiptNo || 'unknown'}`,
-    onAfterPrint: () => console.log('Printed successfully')
   });
 
-  const handleViewBill = (bill) => {
-    setSelectedBill(bill);
-    setShowViewModal(true);
+  const handlePayNow = (bill) => {
+    setBillToPay(bill);
+    setShowPaymentModal(true);
   };
-
-  const transactions = [
-    {
-      id: 1,
-      date: '2024-02-15',
-      dueDate: '2024-02-20',
-      type: 'Consultation',
-      amount: 500,
-      status: 'Paid',
-      paymentMethod: 'Cash',
-      doctor: 'Dr. Smith',
-      receiptNo: 'REC-001'
-    },
-    {
-      id: 2,
-      date: '2024-02-10',
-      dueDate: '2024-02-17',
-      type: 'Laboratory',
-      amount: 1500,
-      status: 'Pending',
-      paymentMethod: 'GCash',
-      doctor: 'Dr. Johnson',
-      receiptNo: 'REC-002'
-    },
-    {
-      id: 3,
-      date: '2024-02-12',
-      dueDate: '2024-02-19',
-      type: 'X-Ray',
-      amount: 3000,
-      status: 'Overdue',
-      paymentMethod: 'Credit Card',
-      doctor: 'Dr. Brown',
-      receiptNo: 'REC-003'
-    },
-    {
-      id: 4,
-      date: '2024-02-14',
-      dueDate: '2024-02-21',
-      type: 'Consultation',
-      amount: 700,
-      status: 'Paid',
-      paymentMethod: 'Cash',
-      doctor: 'Dr. Smith',
-      receiptNo: 'REC-004'
-    },
-    {
-      id: 5,
-      date: '2024-02-13',
-      dueDate: '2024-02-20',
-      type: 'Laboratory',
-      amount: 1200,
-      status: 'Pending',
-      paymentMethod: 'GCash',
-      doctor: 'Dr. Johnson',
-      receiptNo: 'REC-005'
+  const handlePaymentConfirm = async () => {
+    if (!billToPay) return;
+    try {
+      await billingService.updateBill(billToPay.id, { status: 'Paid' });
+      setShowPaymentModal(false);
+      setBillToPay(null);
+      fetchBillingData();
+    } catch (err) {
+      if (err.status === 409) {
+        setShowPaymentModal(false);
+        setShowConflictModal(false);
+        setCancelledMessage(err.data.error);
+        setShowCancelledModal(true);
+        setBillToPay(null);
+        setConflictAppointmentId(null);
+      } else {
+        alert('Payment failed. Please try again.');
+      }
     }
-  ];
-
-  const filteredTransactions = transactions.filter(transaction => {
-    const matchesStatus = filterStatus === 'all' || 
-                         transaction.status.toLowerCase() === filterStatus.toLowerCase();
-    const matchesSearch = transaction.receiptNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         transaction.paymentMethod?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesStatus && matchesSearch;
-  });
-
-  const billingSummary = {
-    totalPending: 2000,
-    totalPaid: 15000,
-    totalOverdue: 500,
-    totalBills: 5
   };
+  const handlePaymentCancel = () => {
+    setShowPaymentModal(false);
+    setBillToPay(null);
+  };
+
+  const handleReschedule = () => {
+    // Open reschedule modal (implement as needed)
+    setShowConflictModal(false);
+    // ...open reschedule UI for conflictAppointmentId...
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!conflictAppointmentId) return;
+    await appointmentService.cancelAppointment(conflictAppointmentId);
+    setShowConflictModal(false);
+    fetchBillingData();
+  };
+
+  const handleCancelledModalClose = () => {
+    setShowCancelledModal(false);
+    // Redirect to appointment booking page (adjust route as needed)
+    window.location.href = '/appointments';
+  };
+
+  const fetchBillingData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
+      
+      if (dateRange.start) {
+        params.start_date = format(new Date(dateRange.start), 'yyyy-MM-dd');
+      }
+      
+      if (dateRange.end) {
+        params.end_date = format(new Date(dateRange.end), 'yyyy-MM-dd');
+      }
+
+      // Use the secure endpoint that only returns current patient's bills
+      const data = await billingService.getMyBills(params);
+      
+      // Filter by search term on frontend
+      const filteredData = searchTerm 
+        ? data.filter(bill => 
+            bill.receipt_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bill.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bill.description?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : data;
+      
+      setTransactions(filteredData);
+      
+      // Calculate summary
+      const summary = filteredData.reduce((acc, bill) => {
+        acc.totalBills++;
+        const amount = parseFloat(bill.amount) || 0;
+        
+        switch ((bill.status || '').toLowerCase()) {
+          case 'pending':
+            acc.totalPending += amount;
+            break;
+          case 'paid':
+            acc.totalPaid += amount;
+            break;
+          case 'overdue':
+            acc.totalOverdue += amount;
+            break;
+          default:
+            break;
+        }
+        return acc;
+      }, {
+        totalPending: 0,
+        totalPaid: 0,
+        totalOverdue: 0,
+        totalBills: 0
+      });
+      
+      setBillingSummary(summary);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching billing data:', err);
+      setError('Failed to load billing data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStatus, dateRange, searchTerm]);
+
+  useEffect(() => {
+    fetchBillingData();
+  }, [fetchBillingData]);
 
   const getStatusBadgeClass = (status) => {
-    switch(status) {
-      case 'Paid': return 'bg-success';
-      case 'Pending': return 'bg-warning text-dark';
-      case 'Overdue': return 'bg-danger';
+    switch(status?.toLowerCase()) {
+      case 'paid': return 'bg-success';
+      case 'pending': return 'bg-warning text-dark';
+      case 'overdue': return 'bg-danger';
       default: return 'bg-secondary';
     }
   };
+
+  if (loading) return (
+    <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="container-fluid py-4">
+      <div className="alert alert-danger" role="alert">
+        <i className="bi bi-exclamation-triangle me-2"></i>
+        {error}
+      </div>
+    </div>
+  );
 
   return (
     <div className="container-fluid py-4">
@@ -238,35 +311,48 @@ const BillingHistory = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map(bill => (
-                  <tr key={bill.id}>
-                    <td>{bill.receiptNo}</td>
-                    <td>{new Date(bill.date).toLocaleDateString()}</td>
-                    <td>{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '-'}</td>
-                    <td>₱{bill.amount.toLocaleString()}</td>
-                    <td>
-                      <span className={`badge ${getStatusBadgeClass(bill.status)}`}>
-                        {bill.status}
-                      </span>
-                    </td>
-                    <td>
-                      {bill.paymentMethod || '-'}
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleViewBill(bill)}
-                        >
-                          <i className="bi bi-eye me-1"></i>View
-                        </button>
-                        <button className="btn btn-sm btn-outline-secondary">
-                          <i className="bi bi-download me-1"></i>Download
-                        </button>
-                      </div>
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="text-center py-4 text-muted">
+                      No billing records found
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  transactions.map(bill => (
+                    <tr key={bill.id}>
+                      <td>{bill.receipt_no || bill.id}</td>
+                      <td>{bill.created_at ? new Date(bill.created_at).toLocaleDateString() : '-'}</td>
+                      <td>{bill.due_date ? new Date(bill.due_date).toLocaleDateString() : '-'}</td>
+                      <td>₱{bill.amount?.toLocaleString()}</td>
+                      <td>
+                        <span className={`badge ${getStatusBadgeClass(bill.status)}`}>
+                          {bill.status}
+                        </span>
+                        {bill.status === 'Pending' && (
+                          <button className="btn btn-sm btn-primary ms-2" onClick={() => handlePayNow(bill)}>
+                            Pay Now
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        {bill.payment_method ? bill.payment_method : '-'}
+                      </td>
+                      <td>
+                        <div className="btn-group">
+                          <button 
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => setSelectedBill(bill)}
+                          >
+                            <i className="bi bi-eye me-1"></i>View
+                          </button>
+                          <button className="btn btn-sm btn-outline-secondary">
+                            <i className="bi bi-download me-1"></i>Download
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -274,13 +360,13 @@ const BillingHistory = () => {
       </div>
 
       {/* View Bill Modal */}
-      {showViewModal && selectedBill && (
+      {selectedBill && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Bill Details - {selectedBill.receiptNo}</h5>
-                <button type="button" className="btn-close" onClick={() => setShowViewModal(false)}></button>
+                <h5 className="modal-title">Bill Details - {selectedBill.receipt_no || selectedBill.id}</h5>
+                <button type="button" className="btn-close" onClick={() => setSelectedBill(null)}></button>
               </div>
               
               {/* Printable Content */}
@@ -294,8 +380,8 @@ const BillingHistory = () => {
                   </div>
                   <div className="text-end">
                     <h5 className="mb-1">BILLING STATEMENT</h5>
-                    <p className="mb-0">Bill #: {selectedBill.receiptNo}</p>
-                    <p className="mb-0">Date: {new Date(selectedBill.date).toLocaleDateString()}</p>
+                    <p className="mb-0">Bill #: {selectedBill.receipt_no || selectedBill.id}</p>
+                    <p className="mb-0">Date: {new Date(selectedBill.created_at).toLocaleDateString()}</p>
                   </div>
                 </div>
 
@@ -303,13 +389,17 @@ const BillingHistory = () => {
                 <div className="row mb-4">
                   <div className="col-md-6">
                     <h6 className="text-muted mb-2">Service Information</h6>
-                    <p className="mb-1"><strong>Type:</strong> {selectedBill.type}</p>
-                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor}</p>
+                    <p className="mb-1"><strong>Type:</strong> {selectedBill.type || 'General'}</p>
+                    <p className="mb-1"><strong>Description:</strong> {selectedBill.description || 'Medical services'}</p>
+                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor?.name || 'N/A'}</p>
                   </div>
                   <div className="col-md-6 text-md-end">
                     <h6 className="text-muted mb-2">Payment Details</h6>
                     <p className="mb-1"><strong>Status:</strong> {selectedBill.status}</p>
-                    <p className="mb-1"><strong>Due Date:</strong> {new Date(selectedBill.dueDate).toLocaleDateString()}</p>
+                    <p className="mb-1"><strong>Due Date:</strong> {new Date(selectedBill.due_date).toLocaleDateString()}</p>
+                    {selectedBill.paid_at && (
+                      <p className="mb-1"><strong>Paid Date:</strong> {new Date(selectedBill.paid_at).toLocaleDateString()}</p>
+                    )}
                   </div>
                 </div>
 
@@ -320,31 +410,90 @@ const BillingHistory = () => {
                       <h6 className="mb-0">Total Amount</h6>
                     </div>
                     <div className="col-md-6 text-md-end">
-                      <h4 className="mb-0">₱{selectedBill.amount.toLocaleString()}</h4>
+                      <h4 className="mb-0">₱{selectedBill.amount?.toLocaleString()}</h4>
                     </div>
                   </div>
                 </div>
 
                 {/* Payment Method */}
-                {selectedBill.paymentMethod && (
+                {selectedBill.payment_method && (
                   <div className="alert alert-success mb-4">
                     <div className="d-flex align-items-center">
                       <i className="bi bi-check-circle-fill me-2"></i>
                       <div>
-                        <p className="mb-0">Paid via {selectedBill.paymentMethod}</p>
+                        <p className="mb-0">Paid via {selectedBill.payment_method}</p>
+                        {selectedBill.paid_at && (
+                          <small className="text-muted">on {new Date(selectedBill.paid_at).toLocaleDateString()}</small>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Footer */}
+                <div className="text-center mt-4 pt-4 border-top">
+                  <p className="mb-0">Thank you for choosing Clinica Laguna</p>
+                  <small className="text-muted">For inquiries, please contact us</small>
+                </div>
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn btn-outline-secondary" onClick={() => setShowViewModal(false)}>
+                <button type="button" className="btn btn-outline-secondary" onClick={() => setSelectedBill(null)}>
                   Close
                 </button>
                 <button type="button" className="btn btn-outline-primary" onClick={handlePrint}>
                   <i className="bi bi-printer me-2"></i>Print Bill
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PaymentGatewayModal
+        show={showPaymentModal}
+        onConfirm={handlePaymentConfirm}
+        onCancel={handlePaymentCancel}
+        paymentMethod={billToPay?.payment_method}
+      />
+
+      {/* Conflict Modal */}
+      {showConflictModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header bg-danger text-white">
+                <h5 className="modal-title">Slot Unavailable</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowConflictModal(false)}></button>
+              </div>
+              <div className="modal-body text-center">
+                <i className="bi bi-exclamation-triangle fs-1 text-danger mb-3"></i>
+                <p className="mb-2">{conflictMessage}</p>
+                <p className="mb-0">Would you like to reschedule or cancel your appointment?</p>
+              </div>
+              <div className="modal-footer justify-content-center">
+                <button className="btn btn-secondary" onClick={handleCancelAppointment}>Cancel Appointment</button>
+                <button className="btn btn-primary" onClick={handleReschedule}>Reschedule</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancelled Modal */}
+      {showCancelledModal && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2100 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header bg-danger text-white">
+                <h5 className="modal-title">Appointment Cancelled</h5>
+              </div>
+              <div className="modal-body text-center">
+                <i className="bi bi-x-circle fs-1 text-danger mb-3"></i>
+                <p className="mb-2">{cancelledMessage}</p>
+              </div>
+              <div className="modal-footer justify-content-center">
+                <button className="btn btn-primary" onClick={handleCancelledModalClose}>Book New Appointment</button>
               </div>
             </div>
           </div>

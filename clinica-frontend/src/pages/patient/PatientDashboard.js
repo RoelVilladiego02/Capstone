@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import AppointmentForm from '../../components/appointments/AppointmentForm';
 import { appointmentService } from '../../services/appointmentService';
 import { patientService } from '../../services/patientService';
+import { prescriptionService } from '../../services/prescriptionService';
 import { extractPatientId, normalizeAppointment, normalizeTime } from '../../utils/patientUtils';
 
 function combineDateAndTime(dateStr, timeStr) {
@@ -105,12 +106,9 @@ const PatientDashboard = () => {
     setLoading(true);
     fetchAppointments();
 
-    // Fetch prescriptions for this patient
-    if (token && patientId) {
-      fetch(`/api/prescriptions?patient_id=${patientId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.json())
+    // Fetch prescriptions for this patient using the shared service
+    if (patientId) {
+      prescriptionService.getByPatient(patientId)
         .then(data => setRecentPrescriptions(data))
         .catch(err => {
           console.error('Error fetching prescriptions:', err);
@@ -319,10 +317,19 @@ const PatientDashboard = () => {
                           <i className="bi bi-capsule text-info"></i>
                         </div>
                         <div>
-                          <h6 className="fw-bold mb-1">{prescription.medication}</h6>
-                          <p className="mb-0 small text-secondary">
-                            {prescription.dosage} · Prescribed on {prescription.date}
-                          </p>
+                          {Array.isArray(prescription.medications) && prescription.medications.length > 0 ? (
+                            <>
+                              <h6 className="fw-bold mb-1">{prescription.medications[0].name}</h6>
+                              <p className="mb-0 small text-secondary">
+                                {prescription.medications[0].dosage} · Prescribed on {new Date(prescription.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <h6 className="fw-bold mb-1">No medication info</h6>
+                              <p className="mb-0 small text-secondary">Prescribed on {prescription.date}</p>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

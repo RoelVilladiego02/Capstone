@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { billingService } from '../services/billingService';
 
 const Billing = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -8,105 +9,59 @@ const Billing = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const printComponentRef = useRef();
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [billingSummary, setBillingSummary] = useState({
+    totalPending: 0,
+    totalPaid: 0,
+    totalOverdue: 0,
+    totalBills: 0
+  });
+
+  useEffect(() => {
+    setLoading(true);
+    billingService.getAllBills()
+      .then(data => {
+        setBills(data);
+        // Calculate summary from bills
+        const summary = data.reduce((acc, bill) => {
+          acc.totalBills++;
+          const amount = parseFloat(bill.amount) || 0;
+          switch ((bill.status || '').toLowerCase()) {
+            case 'pending':
+              acc.totalPending += amount;
+              break;
+            case 'paid':
+              acc.totalPaid += amount;
+              break;
+            case 'overdue':
+              acc.totalOverdue += amount;
+              break;
+            default:
+              break;
+          }
+          return acc;
+        }, {
+          totalPending: 0,
+          totalPaid: 0,
+          totalOverdue: 0,
+          totalBills: 0
+        });
+        setBillingSummary(summary);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to fetch bills');
+        setLoading(false);
+      });
+  }, []);
 
   const handlePrint = useReactToPrint({
     content: () => printComponentRef.current,
     documentTitle: `Bill-${selectedBill?.id || 'unknown'}`,
     onAfterPrint: () => console.log('Printed successfully')
   });
-
-  const billingSummary = {
-    totalPending: 25000,
-    totalPaid: 150000,
-    totalOverdue: 15000,
-    totalBills: 75
-  };
-
-  const bills = [
-    {
-      id: "BILL-2024-001",
-      patientName: "John Doe",
-      patientId: "P001",
-      date: "2024-02-15",
-      dueDate: "2024-03-15",
-      amount: 2500,
-      status: "Pending",
-      items: [
-        { description: "Consultation Fee", amount: 1500 },
-        { description: "Laboratory Tests - CBC", amount: 800 },
-        { description: "Prescription Medications", amount: 200 }
-      ],
-      paymentMethod: null
-    },
-    {
-      id: "BILL-2024-002",
-      patientName: "Jane Smith",
-      patientId: "P002",
-      date: "2024-02-14",
-      dueDate: "2024-03-14",
-      amount: 3500,
-      status: "Paid",
-      items: [
-        { description: "Consultation Fee", amount: 1500 },
-        { description: "X-Ray Examination", amount: 2000 }
-      ],
-      paymentMethod: "Credit Card",
-      paymentDate: "2024-02-14",
-      paymentReference: "CC-20240214-123"
-    },
-    {
-      id: "BILL-2024-003",
-      patientName: "Mike Wilson",
-      patientId: "P003",
-      date: "2024-02-13",
-      dueDate: "2024-03-13",
-      amount: 5000,
-      status: "Overdue",
-      items: [
-        { description: "Emergency Room Fee", amount: 3000 },
-        { description: "Medical Supplies", amount: 1000 },
-        { description: "Laboratory Tests", amount: 1000 }
-      ],
-      paymentMethod: null
-    },
-    {
-      id: "BILL-2024-004",
-      patientName: "Sarah Johnson",
-      patientId: "P004",
-      date: "2024-02-12",
-      dueDate: "2024-03-12",
-      amount: 1800,
-      status: "Paid",
-      items: [
-        { description: "Follow-up Consultation", amount: 1000 },
-        { description: "Prescription Medications", amount: 800 }
-      ],
-      paymentMethod: "Online Wallet (GCASH/Paymaya)",
-      paymentDate: "2024-02-12",
-      paymentReference: "GC-20240212-456"
-    },
-    {
-      id: "BILL-2024-005",
-      patientName: "Robert Brown",
-      patientId: "P005",
-      date: "2024-02-11",
-      dueDate: "2024-03-11",
-      amount: 4200,
-      status: "Pending",
-      items: [
-        { description: "Specialist Consultation", amount: 2000 },
-        { description: "Diagnostic Tests", amount: 1500 },
-        { description: "Medical Certificate", amount: 700 }
-      ],
-      paymentMethod: null
-    }
-  ];
-
-  const paymentMethods = [
-    { id: 'cash', name: 'Cash', icon: 'bi-cash' },
-    { id: 'credit', name: 'Credit Card', icon: 'bi-credit-card' },
-    { id: 'online', name: 'Online Wallet (GCASH/Paymaya)', icon: 'bi-wallet2' }
-  ];
 
   const getStatusBadgeClass = (status) => {
     switch(status) {
@@ -117,15 +72,13 @@ const Billing = () => {
     }
   };
 
-  const getPaymentMethodIcon = (method) => {
-    const paymentMethod = paymentMethods.find(pm => pm.name === method);
-    return paymentMethod ? paymentMethod.icon : 'bi-question-circle';
-  };
-
   const handleViewBill = (bill) => {
     setSelectedBill(bill);
     setShowViewModal(true);
   };
+
+  if (loading) return <div>Loading bills...</div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
 
   return (
     <div className="container-fluid py-4">
@@ -263,45 +216,46 @@ const Billing = () => {
                   <th>Amount</th>
                   <th>Status</th>
                   <th>Payment Method</th>
+                  <th>Doctor</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {bills.map(bill => (
                   <tr key={bill.id}>
-                    <td>{bill.id}</td>
+                    <td>{bill.receipt_no || bill.id}</td>
                     <td>
                       <div className="d-flex align-items-center">
                         <div className="avatar me-2">
                           <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
                                style={{ width: '40px', height: '40px' }}>
-                            {bill.patientName.charAt(0)}
+                            {bill.patient?.user?.name ? bill.patient.user.name.charAt(0) : '?'}
                           </div>
                         </div>
                         <div>
-                          <div className="fw-medium">{bill.patientName}</div>
-                          <small className="text-muted">ID: {bill.patientId}</small>
+                          <div className="fw-medium">{bill.patient?.user?.name || 'Unknown'}</div>
+                          <small className="text-muted">ID: {bill.patient_id}</small>
                         </div>
                       </div>
                     </td>
-                    <td>{new Date(bill.date).toLocaleDateString()}</td>
-                    <td>{new Date(bill.dueDate).toLocaleDateString()}</td>
-                    <td>₱{bill.amount.toLocaleString()}</td>
+                    <td>{bill.created_at ? new Date(bill.created_at).toLocaleDateString() : '-'}</td>
+                    <td>{bill.due_date ? new Date(bill.due_date).toLocaleDateString() : '-'}</td>
+                    <td>₱{bill.amount?.toLocaleString()}</td>
                     <td>
                       <span className={`badge ${getStatusBadgeClass(bill.status)}`}>
                         {bill.status}
                       </span>
                     </td>
                     <td>
-                      {bill.paymentMethod ? (
+                      {bill.payment_method ? (
                         <span className="text-success">
-                          <i className={`bi ${getPaymentMethodIcon(bill.paymentMethod)} me-2`}></i>
-                          {bill.paymentMethod}
+                          {bill.payment_method}
                         </span>
                       ) : (
                         <span className="text-muted">Not paid</span>
                       )}
                     </td>
+                    <td>{bill.doctor?.name || 'N/A'}</td>
                     <td>
                       <div className="btn-group">
                         <button 
@@ -354,8 +308,9 @@ const Billing = () => {
                 <div className="row mb-4">
                   <div className="col-md-6">
                     <h6 className="text-muted mb-2">Patient Information</h6>
-                    <p className="mb-1"><strong>Name:</strong> {selectedBill.patientName}</p>
-                    <p className="mb-1"><strong>ID:</strong> {selectedBill.patientId}</p>
+                    <p className="mb-1"><strong>Name:</strong> {selectedBill.patient?.user?.name || 'Unknown'}</p>
+                    <p className="mb-1"><strong>ID:</strong> {selectedBill.patient_id}</p>
+                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor?.name || 'N/A'}</p>
                   </div>
                   <div className="col-md-6 text-md-end">
                     <h6 className="text-muted mb-2">Bill Information</h6>

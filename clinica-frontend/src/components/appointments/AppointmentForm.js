@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../../services/api';
 import { appointmentService } from '../../services/appointmentService';
+import PaymentGatewayModal from './PaymentGatewayModal';
 
 const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCancel, isOpen = false }) => {
   const [appointment, setAppointment] = useState({
@@ -10,7 +11,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     type: 'Walk-in',
     concern: '',
     notes: '',
-    paymentMethod: 'Cash',
+    paymentMethod: 'credit_card', // Default to Credit Card (backend key)
   });
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -23,6 +24,10 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
   const [availabilityError, setAvailabilityError] = useState('');
   const [isSlotAvailable, setIsSlotAvailable] = useState(true);
   const [formErrors, setFormErrors] = useState({});
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(null);
+  const [conflictError, setConflictError] = useState('');
+  const [timeConflictError, setTimeConflictError] = useState('');
   
   useEffect(() => {
     if (isOpen) {
@@ -131,6 +136,53 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     }
   }, [appointment.date, appointment.time, appointment.doctorId, checkAvailability]);
 
+  // Check for patient-doctor-time conflict when date, time, or doctor changes
+  useEffect(() => {
+    if (appointment.date && appointment.time && appointment.doctorId && patientId) {
+      appointmentService.checkPatientDoctorTimeConflict({
+        patient_id: patientId,
+        doctor_id: appointment.doctorId,
+        date: appointment.date,
+        time: appointment.time,
+      })
+        .then(res => {
+          if (res.conflict) {
+            setConflictError(res.message);
+          } else {
+            setConflictError('');
+          }
+        })
+        .catch(err => {
+          setConflictError('Unable to check for conflicting appointments.');
+        });
+    } else {
+      setConflictError('');
+    }
+  }, [appointment.date, appointment.time, appointment.doctorId, patientId]);
+
+  // Check for patient-time conflict (any doctor) when date or time changes
+  useEffect(() => {
+    if (appointment.date && appointment.time && patientId) {
+      appointmentService.checkPatientTimeConflict({
+        patient_id: patientId,
+        date: appointment.date,
+        time: appointment.time,
+      })
+        .then(res => {
+          if (res.conflict) {
+            setTimeConflictError(res.message);
+          } else {
+            setTimeConflictError('');
+          }
+        })
+        .catch(err => {
+          setTimeConflictError('Unable to check for conflicting appointments.');
+        });
+    } else {
+      setTimeConflictError('');
+    }
+  }, [appointment.date, appointment.time, patientId]);
+
   const validateField = (field, value) => {
     const errors = { ...formErrors };
     
@@ -194,10 +246,18 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       return;
     }
 
+    // Show payment modal before proceeding
+    setShowPaymentModal(true);
+    setPendingSubmit(() => (confirmed) => processAppointmentSubmission(confirmed));
+  };
+
+  const processAppointmentSubmission = async (paymentConfirmed) => {
+    setShowPaymentModal(false);
     setLoading(true);
     setError('');
-
     try {
+      const appointmentStatus = paymentConfirmed ? 'Scheduled' : 'Pending';
+      const billStatus = paymentConfirmed ? 'Paid' : 'Pending';
       const appointmentData = {
         patient_id: Number(patientId),
         doctor_id: parseInt(appointment.doctorId),
@@ -206,17 +266,33 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
         concern: appointment.concern,
         notes: appointment.notes,
         type: appointment.type,
-        status: 'Scheduled'
+        status: appointmentStatus,
+        payment_method: appointment.paymentMethod,
       };
-
-      console.log('Submitting appointment data:', appointmentData);
-      
       const response = await appointmentService.createAppointment(appointmentData);
-      console.log('Appointment created:', response);
-      
+      // Create bill
+      try {
+        const today = new Date();
+        const dueDate = today.toISOString().split('T')[0];
+        const randomReceipt = 'RCPT-' + Math.floor(Math.random() * 1000000000);
+        await import('../../services/billingService').then(({ billingService }) =>
+          billingService.createBill({
+            patient_id: response.patient_id,
+            doctor_id: response.doctor_id,
+            receipt_no: randomReceipt,
+            type: 'Downpayment',
+            amount: 500,
+            status: billStatus,
+            payment_method: appointment.paymentMethod,
+            due_date: dueDate,
+            paid_at: billStatus === 'Paid' ? dueDate : null,
+            description: `Downpayment for appointment #${response.id}`,
+          })
+        );
+      } catch (billErr) {
+        console.error('Error creating downpayment bill:', billErr);
+      }
       setSuccess(true);
-      
-      // Reset form
       setAppointment({
         date: '',
         time: '',
@@ -224,21 +300,16 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
         type: 'Walk-in',
         concern: '',
         notes: '',
-        paymentMethod: 'Cash',
+        paymentMethod: 'credit_card',
       });
       setFormErrors({});
-      
-      // Call onSuccess callback after a short delay to show success message
       setTimeout(() => {
         if (onSuccess) {
           onSuccess(response);
         }
       }, 1500);
-      
     } catch (err) {
       console.error('Error creating appointment:', err);
-      
-      // Handle specific validation errors from backend
       if (err.response?.data?.errors) {
         const validationErrors = err.response.data.errors;
         const errorMessages = Object.values(validationErrors).flat();
@@ -260,7 +331,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       type: 'Walk-in',
       concern: '',
       notes: '',
-      paymentMethod: 'Cash',
+      paymentMethod: 'credit_card', // Reset to default
     });
     setSuccess(false);
     setError('');
@@ -461,33 +532,23 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
                       value={appointment.paymentMethod}
                       onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
                     >
-                      <option value="Cash">💵 Cash</option>
-                      <option value="Credit Card">💳 Credit Card</option>
-                      <option value="Insurance">🏥 Insurance</option>
+                      <option value="credit_card">💳 Credit Card</option>
+                      <option value="gcash">📱 GCash</option>
+                      <option value="paymaya">📱 PayMaya</option>
                     </select>
                   </div>
                   
                   {/* Availability Status */}
-                  {appointment.date && appointment.time && appointment.doctorId && (
-                    <div className="col-12">
-                      {availabilityLoading ? (
-                        <div className="alert alert-info d-flex align-items-center">
-                          <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                          <span>Checking availability...</span>
-                        </div>
-                      ) : availabilityError ? (
-                        <div className="alert alert-warning d-flex align-items-center">
-                          <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                          <span>{availabilityError}</span>
-                        </div>
-                      ) : isSlotAvailable ? (
-                        <div className="alert alert-success d-flex align-items-center">
-                          <i className="bi bi-check-circle-fill me-2"></i>
-                          <span>Time slot is available!</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
+                  {/* Show slot availability or conflict error */}
+                  {timeConflictError ? (
+                    <div className="alert alert-danger mt-2"><strong>Error:</strong> {timeConflictError}</div>
+                  ) : conflictError ? (
+                    <div className="alert alert-danger mt-2"><strong>Error:</strong> {conflictError}</div>
+                  ) : availabilityError ? (
+                    <div className="alert alert-danger mt-2"><strong>Error:</strong> {availabilityError}</div>
+                  ) : isSlotAvailable && appointment.date && appointment.time && appointment.doctorId ? (
+                    <div className="alert alert-success mt-2">Time slot is available!</div>
+                  ) : null}
                   
                   <div className="col-12">
                     <label className="form-label fw-semibold">
@@ -555,7 +616,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
                 type="submit"
                 className="btn btn-primary px-4"
                 style={{ backgroundColor: '#E31937', borderColor: '#E31937' }}
-                disabled={loading || !patientId || !isFormValid() || availabilityLoading}
+                disabled={loading || !patientId || !isFormValid() || availabilityLoading || !!conflictError || !!timeConflictError}
                 onClick={handleSubmit}
               >
                 {loading ? (
@@ -574,6 +635,13 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
           </div>
         </div>
       </div>
+      {/* Payment Gateway Modal */}
+      <PaymentGatewayModal
+        show={showPaymentModal}
+        paymentMethod={appointment.paymentMethod}
+        onConfirm={() => pendingSubmit && pendingSubmit(true)}
+        onCancel={() => pendingSubmit && pendingSubmit(false)}
+      />
     </div>
   );
 };

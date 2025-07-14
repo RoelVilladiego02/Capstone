@@ -14,7 +14,10 @@ export const appointmentService = {
   getAppointment: (id) => api.get(`/appointments/${id}`),
 
   // Create a new appointment
-  createAppointment: (data) => api.post('/appointments', data),
+  createAppointment: async (appointmentData) => {
+    // appointmentData should include status and payment_method
+    return api.post('/appointments', appointmentData);
+  },
 
   // Update an appointment by ID
   updateAppointment: (id, data) => api.put(`/appointments/${id}`, data),
@@ -24,6 +27,11 @@ export const appointmentService = {
 
   // Check-in for an appointment
   checkIn: (id, data) => api.post(`/appointments/${id}/check-in`, data),
+
+  // Cancel an appointment by ID
+  cancelAppointment: async (appointmentId) => {
+    return api.put(`/appointments/${appointmentId}`, { status: 'Cancelled' });
+  },
 
   // Check if a time slot is available
   checkAvailability: (date, time, doctorId = null) => {
@@ -79,5 +87,22 @@ export const appointmentService = {
   getAppointmentsByDate: (date, params = {}) => {
     const query = new URLSearchParams({ date, ...params }).toString();
     return api.get(`/appointments?${query}`);
-  }
+  },
+
+  checkPatientDoctorTimeConflict: async ({ patient_id, doctor_id, date, time }) => {
+    return api.post('/appointments/check-patient-doctor-time-conflict', {
+      patient_id,
+      doctor_id,
+      date,
+      time,
+    });
+  },
+
+  checkPatientTimeConflict: async ({ patient_id, date, time }) => {
+    return api.post('/appointments/check-patient-time-conflict', {
+      patient_id,
+      date,
+      time,
+    });
+  },
 };
