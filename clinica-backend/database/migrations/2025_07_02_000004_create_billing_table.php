@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('bills', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('appointment_id')->nullable()->constrained('appointments');
             $table->foreignId('patient_id')->constrained('patients');
             $table->foreignId('doctor_id')->nullable()->constrained('users');
             $table->string('receipt_no')->unique();

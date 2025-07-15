@@ -50,4 +50,10 @@ class Billing extends Model
     {
         return $this->belongsTo(User::class, 'doctor_id');
     }
+
+    // Relationship to Appointment
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class, 'appointment_id');
+    }
 }
