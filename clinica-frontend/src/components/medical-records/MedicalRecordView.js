@@ -45,45 +45,47 @@ const MedicalRecordView = () => {
   const handleUploadDocument = () => setShowUploadModal(true);
 
   useEffect(() => {
+    let isMounted = true; // flag to track if component is still mounted
+
     const resolveAndFetch = async () => {
       setLoading(true);
       setError(null);
       let id = patientId;
-      if (!id) {
-        // Try to get current user's patient ID
-        try {
+      try {
+        if (!id) {
+          // Try to get current user's patient ID
           const profile = await patientService.getMyProfile();
           id = extractPatientId(profile);
-          if (id) {
+          if (id && isMounted) {
             navigate(`/medical-records/${id}`, { replace: true });
-            return; // navigation will re-trigger useEffect
-          } else {
+            return;
+          } else if (isMounted) {
             setError('Patient ID is required');
-            setLoading(false);
             return;
           }
-        } catch (err) {
-          setError('Patient ID is required');
-          setLoading(false);
-          return;
         }
-      }
-      try {
-        // Get patient information
-        const patient = await patientService.getPatient(id);
-        setPatientRecord(patient);
-        // Get medical records for the patient
-        const records = await medicalRecordService.getByPatientId(id);
-        setMedicalRecords(records);
+        if (isMounted) {
+          // Get patient information
+          const patient = await patientService.getPatient(id);
+          setPatientRecord(patient);
+          // Get medical records for the patient
+          const records = await medicalRecordService.getByPatientId(id);
+          setMedicalRecords(records);
+        }
       } catch (err) {
-        console.error('Error fetching patient data:', err);
-        setError(err.message || 'Failed to load patient data');
+        if (isMounted) {
+          setError(err.message || 'Failed to load patient data');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
     resolveAndFetch();
-    // Only depend on patientId and navigate
+
+    return () => {
+      isMounted = false; // cleanup: prevent state updates or navigation after unmount
+    };
   }, [patientId, navigate]);
 
   // Filter records based on search and date
@@ -134,12 +136,11 @@ const MedicalRecordView = () => {
 
   if (loading) {
     return (
-      <div className="container-fluid py-4">
-        <div className="d-flex justify-content-center">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
         </div>
+        <p className="text-primary">Loading medical records...</p>
       </div>
     );
   }

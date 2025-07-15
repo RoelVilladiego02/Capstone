@@ -246,6 +246,18 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
       return;
     }
 
+    // Check if patient already has an appointment for the selected date
+    try {
+      const availabilityCheck = await appointmentService.checkPatientDateAvailability(patientId, appointment.date);
+      if (availabilityCheck.has_appointment) {
+        setError(`You already have an appointment scheduled for ${appointment.date} at ${availabilityCheck.existing_appointment.time}. Only one appointment per day is allowed.`);
+        return;
+      }
+    } catch (err) {
+      setError('Unable to verify appointment availability. Please try again.');
+      return;
+    }
+
     // Show payment modal before proceeding
     setShowPaymentModal(true);
     setPendingSubmit(() => (confirmed) => processAppointmentSubmission(confirmed));
@@ -270,11 +282,21 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
         payment_method: appointment.paymentMethod,
       };
       const response = await appointmentService.createAppointment(appointmentData);
+      console.log('Appointment creation response:', response); // <-- Add this
+
       // Create bill
       try {
         const today = new Date();
         const dueDate = today.toISOString().split('T')[0];
         const randomReceipt = 'RCPT-' + Math.floor(Math.random() * 1000000000);
+
+        // Check required fields
+        if (!response.id || !response.patient_id || !response.doctor_id) {
+          console.error('Missing required fields for bill creation:', response);
+          setError('Failed to create bill: missing appointment information.');
+          return;
+        }
+
         await import('../../services/billingService').then(({ billingService }) =>
           billingService.createBill({
             patient_id: response.patient_id,
@@ -287,10 +309,12 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
             due_date: dueDate,
             paid_at: billStatus === 'Paid' ? dueDate : null,
             description: `Downpayment for appointment #${response.id}`,
+            appointment_id: response.id,
           })
         );
       } catch (billErr) {
         console.error('Error creating downpayment bill:', billErr);
+        setError('Failed to create bill for this appointment. Please contact support.');
       }
       setSuccess(true);
       setAppointment({

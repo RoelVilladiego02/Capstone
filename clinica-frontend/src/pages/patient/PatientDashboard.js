@@ -102,18 +102,26 @@ const PatientDashboard = () => {
 
   // Use fetchAppointments in useEffect
   useEffect(() => {
-    if (!patientId) return; // Only proceed if patientId is available
+    if (!patientId) return;
     setLoading(true);
-    fetchAppointments();
-
-    // Fetch prescriptions for this patient using the shared service
-    if (patientId) {
-      prescriptionService.getByPatient(patientId)
-        .then(data => setRecentPrescriptions(data))
-        .catch(err => {
-          console.error('Error fetching prescriptions:', err);
-        });
-    }
+    
+    // Fetch all data in parallel
+    Promise.all([
+      fetchAppointments(),
+      prescriptionService.getByPatient(patientId),
+      // Add other parallel fetches here if needed
+    ])
+      .then(([_, prescriptions]) => {
+        setRecentPrescriptions(prescriptions);
+        setError('');
+      })
+      .catch(err => {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load some dashboard data. Please refresh.');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [token, patientId, fetchAppointments]);
 
   // Handle successful booking - IMPROVED for better immediate state updates
@@ -145,21 +153,31 @@ const PatientDashboard = () => {
       return;
     }
     setError('');
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const availabilityCheck = await appointmentService.checkPatientDateAvailability(patientId, today);
-      if (availabilityCheck.has_appointment) {
-        setError(`You already have an appointment scheduled for today at ${availabilityCheck.existing_appointment.time}. Only one appointment per day is allowed.`);
-        return;
-      }
-      setShowBookingModal(true);
-    } catch (err) {
-      console.error('Error checking patient date availability:', err);
-      setError('Unable to verify appointment availability. Please try again.');
-    }
+    setShowBookingModal(true);
   };
 
-  if (loading) return <div>Loading...</div>;
+  // Helper to filter prescriptions from the last 2 days
+  const getRecentPrescriptions = () => {
+    const now = new Date();
+    return recentPrescriptions.filter(prescription => {
+      const prescDate = new Date(prescription.date);
+      // Difference in ms
+      const diffMs = now - prescDate;
+      // 2 days in ms = 2 * 24 * 60 * 60 * 1000
+      return diffMs >= 0 && diffMs <= 2 * 24 * 60 * 60 * 1000;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="text-primary">Loading your dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4 bg-light">
@@ -216,13 +234,7 @@ const PatientDashboard = () => {
                     <span className="visually-hidden">Loading...</span>
                   </div>
                 </div>
-              ) : error ? (
-                <div className="alert alert-danger alert-dismissible fade show" role="alert">
-                  <i className="bi bi-exclamation-triangle me-2"></i>
-                  {error}
-                  <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close" onClick={() => setError('')}></button>
-                </div>
-              ) : (
+              ) : error && error.includes('Only one appointment per day is allowed') ? null : (
                 upcomingAppointments.length > 0 ? (
                   <div className="row">
                     {upcomingAppointments.map((apt) => (
@@ -302,15 +314,9 @@ const PatientDashboard = () => {
                     <span className="visually-hidden">Loading...</span>
                   </div>
                 </div>
-              ) : error ? (
-                <div className="alert alert-danger alert-dismissible fade show" role="alert">
-                  <i className="bi bi-exclamation-triangle me-2"></i>
-                  {error}
-                  <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close" onClick={() => setError('')}></button>
-                </div>
-              ) : (
+              ) : error && error.includes('Only one appointment per day is allowed') ? null : (
                 recentPrescriptions.length > 0 ? (
-                  recentPrescriptions.map(prescription => (
+                  getRecentPrescriptions().map(prescription => (
                     <div key={prescription.id} className="mb-3 p-3 border-0 shadow-sm rounded-lg bg-white">
                       <div className="d-flex align-items-center">
                         <div className="rounded-circle bg-info bg-opacity-10 p-3 me-3">

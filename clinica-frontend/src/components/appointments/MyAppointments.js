@@ -140,21 +140,7 @@ const MyAppointments = () => {
     setError('');
     setSuccessMessage('');
 
-    try {
-      // Check if patient already has an appointment today
-      const today = new Date().toISOString().split('T')[0];
-      const availabilityCheck = await appointmentService.checkPatientDateAvailability(patientId, today);
-      
-      if (availabilityCheck.has_appointment) {
-        setError(`You already have an appointment scheduled for today at ${availabilityCheck.existing_appointment.time}. Only one appointment per day is allowed.`);
-        return;
-      }
-
-      setShowForm(true);
-    } catch (err) {
-      console.error('Error checking patient date availability:', err);
-      setError('Unable to verify appointment availability. Please try again.');
-    }
+    setShowForm(true);
   };
 
   const getStatusBadge = (status) => {
@@ -265,13 +251,11 @@ const MyAppointments = () => {
 
   if (loading) {
     return (
-      <div className="container py-4">
-        <div className="text-center">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="mt-3 text-muted">Loading your appointments...</p>
+      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
         </div>
+        <p className="text-primary">Loading your appointments...</p>
       </div>
     );
   }
@@ -434,4 +418,4 @@ const MyAppointments = () => {
   );
 };
 
-export default MyAppointments; 
+export default MyAppointments;

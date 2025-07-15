@@ -200,12 +200,11 @@ ${prescription.nextCheckup ? `Next Check-up: ${new Date(prescription.nextCheckup
 
   if (loading) {
     return (
-      <div className="container-fluid py-4">
-        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
         </div>
+        <p className="text-primary">Loading your prescriptions...</p>
       </div>
     );
   }
