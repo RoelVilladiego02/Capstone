@@ -27,8 +27,6 @@ class User extends Authenticatable
         'age',
         'gender',
         'status',
-        'specialization',
-        'department',
     ];
 
     /**
@@ -74,5 +72,10 @@ class User extends Authenticatable
     public function medicalRecords()
     {
         return $this->hasMany(MedicalRecord::class, 'doctor_id');
+    }
+
+    public function doctor()
+    {
+        return $this->hasOne(Doctor::class);
     }
 }

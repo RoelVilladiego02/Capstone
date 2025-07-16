@@ -30,9 +30,6 @@ class UserSeeder extends Seeder
         // Seed Admin Users
         $this->createAdmin();
 
-        // Seed Doctors
-        $this->createDoctors();
-
         // Seed Receptionists
         $this->createReceptionists();
 
@@ -60,90 +57,6 @@ class UserSeeder extends Seeder
         ]);
 
         $admin->roles()->attach($adminRole->id);
-    }
-
-    private function createDoctors()
-    {
-        $doctorRole = Role::where('name', 'Doctor')->first();
-
-        $doctors = [
-            [
-                'name' => 'Dr. Maria Santos',
-                'username' => 'dr_santos',
-                'specialization' => 'Cardiology',
-                'department' => 'Cardiovascular Medicine'
-            ],
-            [
-                'name' => 'Dr. James Chen',
-                'username' => 'dr_chen',
-                'specialization' => 'Pediatrics',
-                'department' => 'Children\'s Health'
-            ],
-            [
-                'name' => 'Dr. Sarah Williams',
-                'username' => 'dr_williams',
-                'specialization' => 'Dermatology',
-                'department' => 'Skin Care'
-            ],
-            [
-                'name' => 'Dr. Robert Garcia',
-                'username' => 'dr_garcia',
-                'specialization' => 'Orthopedics',
-                'department' => 'Bone & Joint'
-            ],
-            [
-                'name' => 'Dr. Emily Patel',
-                'username' => 'dr_patel',
-                'specialization' => 'Neurology',
-                'department' => 'Neuroscience'
-            ],
-            [
-                'name' => 'Dr. Michael Kim',
-                'username' => 'dr_kim',
-                'specialization' => 'Ophthalmology',
-                'department' => 'Eye Care'
-            ],
-            [
-                'name' => 'Dr. Lisa Rodriguez',
-                'username' => 'dr_rodriguez',
-                'specialization' => 'Endocrinology',
-                'department' => 'Hormonal Disorders'
-            ],
-            [
-                'name' => 'Dr. David Wilson',
-                'username' => 'dr_wilson',
-                'specialization' => 'Gastroenterology',
-                'department' => 'Digestive Health'
-            ],
-            [
-                'name' => 'Dr. Rachel Thompson',
-                'username' => 'dr_thompson',
-                'specialization' => 'Psychiatry',
-                'department' => 'Mental Health'
-            ],
-            [
-                'name' => 'Dr. John Martinez',
-                'username' => 'dr_martinez',
-                'specialization' => 'Pulmonology',
-                'department' => 'Respiratory Care'
-            ]
-        ];
-
-        foreach ($doctors as $index => $doctor) {
-            $user = User::create([
-                'name' => $doctor['name'],
-                'username' => $doctor['username'],
-                'phone_number' => '09171234' . str_pad($index + 1, 3, '0', STR_PAD_LEFT),
-                'email' => strtolower(str_replace('dr_', '', $doctor['username'])) . '@medclinic.com',
-                'password' => Hash::make('12345678'),
-                'age' => rand(35, 65),
-                'gender' => $index % 2 === 0 ? 'Male' : 'Female',
-                'status' => 'Active',
-                'specialization' => $doctor['specialization'],
-                'department' => $doctor['department'],
-            ]);
-            $user->roles()->attach($doctorRole->id);
-        }
     }
 
     private function createReceptionists()

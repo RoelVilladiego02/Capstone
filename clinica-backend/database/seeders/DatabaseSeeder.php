@@ -20,7 +20,10 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         $this->call([
-            UserSeeder::class,
+            BranchesTableSeeder::class,
+            UserSeeder::class,           // <-- creates roles and users
+            DoctorsTableSeeder::class,   // <-- attaches Doctor role to users
+            PatientsTableSeeder::class,
             InventorySeeder::class,
             PermissionSeeder::class,
             PrescriptionSeeder::class, // Add prescription seeder

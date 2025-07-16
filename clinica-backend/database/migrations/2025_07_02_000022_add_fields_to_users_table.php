@@ -12,15 +12,14 @@ return new class extends Migration
             $table->integer('age')->nullable()->after('phone_number');
             $table->string('gender')->nullable()->after('age');
             $table->string('status')->default('Active')->after('gender');
-            $table->string('specialization')->nullable()->after('status');
-            $table->string('department')->nullable()->after('specialization');
+            $table->string('department')->nullable()->after('status');
         });
     }
 
     public function down()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['age', 'gender', 'status', 'specialization', 'department']);
+            $table->dropColumn(['age', 'gender', 'status', 'department']);
         });
     }
 }; 
