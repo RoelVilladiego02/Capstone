@@ -255,7 +255,7 @@ const Billing = () => {
                         <span className="text-muted">Not paid</span>
                       )}
                     </td>
-                    <td>{bill.doctor?.name || 'N/A'}</td>
+                    <td>{bill.doctor || 'N/A'}</td>
                     <td>
                       <div className="btn-group">
                         <button 
@@ -310,7 +310,7 @@ const Billing = () => {
                     <h6 className="text-muted mb-2">Patient Information</h6>
                     <p className="mb-1"><strong>Name:</strong> {selectedBill.patient?.user?.name || 'Unknown'}</p>
                     <p className="mb-1"><strong>ID:</strong> {selectedBill.patient_id}</p>
-                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor?.name || 'N/A'}</p>
+                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor || 'N/A'}</p>
                   </div>
                   <div className="col-md-6 text-md-end">
                     <h6 className="text-muted mb-2">Bill Information</h6>

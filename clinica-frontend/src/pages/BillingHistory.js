@@ -394,7 +394,7 @@ const BillingHistory = () => {
                     <h6 className="text-muted mb-2">Service Information</h6>
                     <p className="mb-1"><strong>Type:</strong> {selectedBill.type || 'General'}</p>
                     <p className="mb-1"><strong>Description:</strong> {selectedBill.description || 'Medical services'}</p>
-                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor?.name || 'N/A'}</p>
+                    <p className="mb-1"><strong>Doctor:</strong> {selectedBill.doctor || 'N/A'}</p>
                   </div>
                   <div className="col-md-6 text-md-end">
                     <h6 className="text-muted mb-2">Payment Details</h6>
