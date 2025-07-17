@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('appointment_id')->nullable()->constrained('appointments');
             $table->foreignId('patient_id')->constrained('patients');
-            $table->foreignId('doctor_id')->nullable()->constrained('users');
+            $table->foreignId('doctor_id')->nullable()->constrained('doctors');
             $table->string('receipt_no')->unique();
             $table->string('type')->nullable();
             $table->decimal('amount', 10, 2);

@@ -10,7 +10,7 @@ class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Appointment::with(['patient.user', 'doctor']);
+        $query = Appointment::with(['patient.user', 'doctor.user']); // ensure doctor.user is eager loaded
         if ($request->has('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
         }
@@ -23,9 +23,7 @@ class AppointmentController extends Controller
         if ($request->has('date')) {
             $query->where('date', $request->input('date'));
         }
-        
         $appointments = $query->get();
-        
         // Transform the data to include doctor name and other required fields
         return $appointments->map(function ($appointment) {
             return [
@@ -38,7 +36,7 @@ class AppointmentController extends Controller
                 'type' => $appointment->type,
                 'concern' => $appointment->concern,
                 'check_in_time' => $appointment->check_in_time,
-                'doctor' => $appointment->doctor ? $appointment->doctor->name : 'Doctor TBD',
+                'doctor' => $appointment->doctor && $appointment->doctor->user ? $appointment->doctor->user->name : 'Doctor TBD',
                 'patient' => $appointment->patient ? $appointment->patient->user->name : 'Unknown Patient',
                 'created_at' => $appointment->created_at,
                 'updated_at' => $appointment->updated_at,
@@ -48,8 +46,7 @@ class AppointmentController extends Controller
 
     public function show($id)
     {
-        $appointment = Appointment::with(['patient.user', 'doctor'])->findOrFail($id);
-        
+        $appointment = Appointment::with(['patient.user', 'doctor.user'])->findOrFail($id); // ensure doctor.user is eager loaded
         return [
             'id' => $appointment->id,
             'patient_id' => $appointment->patient_id,
@@ -60,7 +57,7 @@ class AppointmentController extends Controller
             'type' => $appointment->type,
             'concern' => $appointment->concern,
             'check_in_time' => $appointment->check_in_time,
-            'doctor' => $appointment->doctor ? $appointment->doctor->name : 'Doctor TBD',
+            'doctor' => $appointment->doctor && $appointment->doctor->user ? $appointment->doctor->user->name : 'Doctor TBD',
             'patient' => $appointment->patient ? $appointment->patient->user->name : 'Unknown Patient',
             'created_at' => $appointment->created_at,
             'updated_at' => $appointment->updated_at,
@@ -71,13 +68,13 @@ class AppointmentController extends Controller
     {
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
-            'doctor_id' => 'required|exists:users,id',
+            'doctor_id' => 'required|exists:doctors,id', // changed to doctors.id
             'date' => 'required|date',
             'time' => 'required',
-            'status' => 'required|string', // Accept status from request
+            'status' => 'required|string',
             'type' => 'required|string',
             'concern' => 'nullable|string',
-            'payment_method' => 'nullable|string',
+            'payment_method' => 'nullable|string', // ensure payment_method is validated
         ]);
 
         // Check if there's already a SCHEDULED appointment at the same date and time
@@ -145,7 +142,7 @@ class AppointmentController extends Controller
         $appointment = Appointment::create($validated);
         
         // Load the created appointment with relationships
-        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor'])->find($appointment->id);
+        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor.user'])->find($appointment->id);
         
         return [
             'id' => $appointmentWithRelations->id,
@@ -157,8 +154,9 @@ class AppointmentController extends Controller
             'type' => $appointmentWithRelations->type,
             'concern' => $appointmentWithRelations->concern,
             'check_in_time' => $appointmentWithRelations->check_in_time,
-            'doctor' => $appointmentWithRelations->doctor ? $appointmentWithRelations->doctor->name : 'Doctor TBD',
+            'doctor' => $appointmentWithRelations->doctor && $appointmentWithRelations->doctor->user ? $appointmentWithRelations->doctor->user->name : 'Doctor TBD',
             'patient' => $appointmentWithRelations->patient ? $appointmentWithRelations->patient->user->name : 'Unknown Patient',
+            'payment_method' => $appointmentWithRelations->payment_method,
             'created_at' => $appointmentWithRelations->created_at,
             'updated_at' => $appointmentWithRelations->updated_at,
         ];
@@ -169,12 +167,13 @@ class AppointmentController extends Controller
         $appointment = Appointment::findOrFail($id);
         $validated = $request->validate([
             'patient_id' => 'sometimes|exists:patients,id',
-            'doctor_id' => 'sometimes|exists:users,id',
+            'doctor_id' => 'sometimes|exists:doctors,id', // changed to doctors.id
             'date' => 'sometimes|date',
             'time' => 'sometimes',
             'status' => 'sometimes|string',
             'type' => 'sometimes|string',
             'concern' => 'nullable|string',
+            'payment_method' => 'nullable|string', // ensure payment_method is validated
         ]);
 
         // If updating date/time, check for conflicts
@@ -255,7 +254,7 @@ class AppointmentController extends Controller
         $appointment->update($validated);
         
         // Load the updated appointment with relationships
-        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor'])->find($appointment->id);
+        $appointmentWithRelations = Appointment::with(['patient.user', 'doctor.user'])->find($appointment->id);
         
         return [
             'id' => $appointmentWithRelations->id,
@@ -267,8 +266,9 @@ class AppointmentController extends Controller
             'type' => $appointmentWithRelations->type,
             'concern' => $appointmentWithRelations->concern,
             'check_in_time' => $appointmentWithRelations->check_in_time,
-            'doctor' => $appointmentWithRelations->doctor ? $appointmentWithRelations->doctor->name : 'Doctor TBD',
+            'doctor' => $appointmentWithRelations->doctor && $appointmentWithRelations->doctor->user ? $appointmentWithRelations->doctor->user->name : 'Doctor TBD',
             'patient' => $appointmentWithRelations->patient ? $appointmentWithRelations->patient->user->name : 'Unknown Patient',
+            'payment_method' => $appointmentWithRelations->payment_method,
             'created_at' => $appointmentWithRelations->created_at,
             'updated_at' => $appointmentWithRelations->updated_at,
         ];
@@ -316,8 +316,7 @@ class AppointmentController extends Controller
 
     public function doctorAppointments(Request $request, $doctorId)
     {
-        $query = Appointment::with(['patient.user', 'doctor'])
-            ->where('doctor_id', $doctorId);
+        $query = Appointment::with(['patient.user', 'doctor']);
 
         // Filter by date if provided
         if ($request->has('date')) {
@@ -492,7 +491,7 @@ class AppointmentController extends Controller
     {
         $request->validate([
             'patient_id' => 'required|exists:patients,id',
-            'doctor_id' => 'required|exists:users,id',
+            'doctor_id' => 'required|exists:doctors,id',
             'date' => 'required|date',
             'time' => 'required',
         ]);

@@ -31,7 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [App\Http\Controllers\UserController::class, 'store']);
     Route::put('/users/{id}', [App\Http\Controllers\UserController::class, 'update']);
     Route::delete('/users/{id}', [App\Http\Controllers\UserController::class, 'destroy']);
-    Route::get('/doctors', [App\Http\Controllers\UserController::class, 'doctors']);
+    
+    // Doctor endpoints
+    Route::apiResource('doctors', App\Http\Controllers\DoctorController::class);
 
     // Appointments - Place specific routes before resource routes
     Route::get('/appointments/check-availability', [App\Http\Controllers\AppointmentController::class, 'checkAvailability']);

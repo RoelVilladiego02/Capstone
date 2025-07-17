@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 
 class Billing extends Model
 {
@@ -45,15 +46,44 @@ class Billing extends Model
         return $this->belongsTo(Patient::class);
     }
 
-    // Relationship to Doctor (User)
+    // Relationship to Doctor (Doctor model, not User)
     public function doctor()
     {
-        return $this->belongsTo(User::class, 'doctor_id');
+        return $this->belongsTo(Doctor::class, 'doctor_id');
     }
 
     // Relationship to Appointment
     public function appointment()
     {
         return $this->belongsTo(Appointment::class, 'appointment_id');
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'appointment_id' => 'nullable|exists:appointments,id',
+            'patient_id' => 'required|exists:patients,id',
+            'doctor_id' => 'required|exists:doctors,id',
+            'amount' => 'required|numeric',
+            'status' => 'required|string',
+            'payment_method' => 'required|string',
+            'due_date' => 'required|date',
+            'receipt_no' => 'required|string',
+            'type' => 'required|string',
+            'description' => 'nullable|string',
+        ]);
+        return Billing::create($validated);
+    }
+
+    public function updateFromRequest(Request $request, $id)
+    {
+        $bill = Billing::findOrFail($id);
+        $validated = $request->validate([
+            'patient_id' => 'sometimes|exists:patients,id',
+            'doctor_id' => 'sometimes|exists:doctors,id',
+            // ... rest unchanged ...
+        ]);
+        $bill->update($validated);
+        // ... rest unchanged ...
     }
 }

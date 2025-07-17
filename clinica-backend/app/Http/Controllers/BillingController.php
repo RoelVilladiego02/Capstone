@@ -10,7 +10,7 @@ class BillingController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Billing::with(['patient.user', 'doctor']);
+        $query = Billing::with(['patient.user', 'doctor.user']); // ensure doctor.user is eager loaded
         
         // If patient_id is provided, filter by patient
         if ($request->has('patient_id')) {
@@ -41,7 +41,25 @@ class BillingController extends Controller
             }
         }
         
-        return $query->get();
+        $bills = $query->get();
+        return $bills->map(function ($bill) {
+            return [
+                'id' => $bill->id,
+                'appointment_id' => $bill->appointment_id,
+                'patient_id' => $bill->patient_id,
+                'doctor_id' => $bill->doctor_id,
+                'amount' => $bill->amount,
+                'status' => $bill->status,
+                'payment_method' => $bill->payment_method,
+                'due_date' => $bill->due_date,
+                'receipt_no' => $bill->receipt_no,
+                'type' => $bill->type,
+                'description' => $bill->description,
+                'doctor' => $bill->doctor && $bill->doctor->user ? $bill->doctor->user->name : 'N/A',
+                'created_at' => $bill->created_at,
+                'updated_at' => $bill->updated_at,
+            ];
+        });
     }
 
     public function myBills(Request $request)
@@ -52,7 +70,7 @@ class BillingController extends Controller
             return response()->json(['error' => 'Patient profile not found'], 404);
         }
         
-        $query = Billing::with(['patient.user', 'doctor'])
+        $query = Billing::with(['patient.user', 'doctor.user']) // ensure doctor.user is eager loaded
             ->where('patient_id', $patient->id);
         
         // Apply filters
@@ -68,7 +86,25 @@ class BillingController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
         
-        return $query->get();
+        $bills = $query->get();
+        return $bills->map(function ($bill) {
+            return [
+                'id' => $bill->id,
+                'appointment_id' => $bill->appointment_id,
+                'patient_id' => $bill->patient_id,
+                'doctor_id' => $bill->doctor_id,
+                'amount' => $bill->amount,
+                'status' => $bill->status,
+                'payment_method' => $bill->payment_method,
+                'due_date' => $bill->due_date,
+                'receipt_no' => $bill->receipt_no,
+                'type' => $bill->type,
+                'description' => $bill->description,
+                'doctor' => $bill->doctor && $bill->doctor->user ? $bill->doctor->user->name : 'N/A',
+                'created_at' => $bill->created_at,
+                'updated_at' => $bill->updated_at,
+            ];
+        });
     }
 
     public function show($id)
@@ -81,16 +117,33 @@ class BillingController extends Controller
         $validated = $request->validate([
             'appointment_id' => 'nullable|exists:appointments,id',
             'patient_id' => 'required|exists:patients,id',
-            'doctor_id' => 'required|exists:users,id',
+            'doctor_id' => 'required|exists:doctors,id', // changed to doctors.id
             'amount' => 'required|numeric',
-            'status' => 'required|string', // Accept status from request
+            'status' => 'required|string',
             'payment_method' => 'required|string',
             'due_date' => 'required|date',
             'receipt_no' => 'required|string',
             'type' => 'required|string',
             'description' => 'nullable|string',
         ]);
-        return Billing::create($validated);
+        $bill = Billing::create($validated);
+        $billWithDoctor = Billing::with(['patient.user', 'doctor.user'])->find($bill->id);
+        return [
+            'id' => $billWithDoctor->id,
+            'appointment_id' => $billWithDoctor->appointment_id,
+            'patient_id' => $billWithDoctor->patient_id,
+            'doctor_id' => $billWithDoctor->doctor_id,
+            'amount' => $billWithDoctor->amount,
+            'status' => $billWithDoctor->status,
+            'payment_method' => $billWithDoctor->payment_method,
+            'due_date' => $billWithDoctor->due_date,
+            'receipt_no' => $billWithDoctor->receipt_no,
+            'type' => $billWithDoctor->type,
+            'description' => $billWithDoctor->description,
+            'doctor' => $billWithDoctor->doctor && $billWithDoctor->doctor->user ? $billWithDoctor->doctor->user->name : 'N/A',
+            'created_at' => $billWithDoctor->created_at,
+            'updated_at' => $billWithDoctor->updated_at,
+        ];
     }
 
     public function update(Request $request, $id)
