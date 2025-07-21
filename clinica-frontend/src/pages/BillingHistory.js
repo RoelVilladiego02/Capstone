@@ -4,6 +4,7 @@ import { useReactToPrint } from 'react-to-print';
 import { format } from 'date-fns';
 import PaymentGatewayModal from '../components/appointments/PaymentGatewayModal';
 import { appointmentService } from '../services/appointmentService';
+import RescheduleAppointment from './RescheduleAppointment';
 
 const BillingHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,9 +25,11 @@ const BillingHistory = () => {
   const [billToPay, setBillToPay] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictAppointmentId, setConflictAppointmentId] = useState(null);
-  const [conflictMessage] = useState('');
+  const [conflictMessage, setConflictMessage] = useState('');
   const [showCancelledModal, setShowCancelledModal] = useState(false);
   const [cancelledMessage, setCancelledMessage] = useState('');
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
 
   const handlePrint = useReactToPrint({
     content: () => printComponentRef.current,
@@ -46,11 +49,10 @@ const BillingHistory = () => {
     } catch (err) {
       if (err.status === 409) {
         setShowPaymentModal(false);
-        setShowConflictModal(false);
-        setCancelledMessage(err.data.error);
-        setShowCancelledModal(true);
+        setConflictMessage(err.data.error);
+        setConflictAppointmentId(err.data.appointment_id);
+        setShowConflictModal(true);
         setBillToPay(null);
-        setConflictAppointmentId(null);
       } else {
         alert('Payment failed. Please try again.');
       }
@@ -62,9 +64,11 @@ const BillingHistory = () => {
   };
 
   const handleReschedule = () => {
-    // Open reschedule modal (implement as needed)
-    setShowConflictModal(false);
-    // ...open reschedule UI for conflictAppointmentId...
+    if (conflictAppointmentId) {
+      setRescheduleAppointmentId(conflictAppointmentId);
+      setShowRescheduleModal(true);
+      setShowConflictModal(false);
+    }
   };
 
   const handleCancelAppointment = async () => {
@@ -462,7 +466,7 @@ const BillingHistory = () => {
 
       {/* Conflict Modal */}
       {showConflictModal && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2100 }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg">
               <div className="modal-header bg-danger text-white">
@@ -470,7 +474,7 @@ const BillingHistory = () => {
                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowConflictModal(false)}></button>
               </div>
               <div className="modal-body text-center">
-                <i className="bi bi-exclamation-triangle fs-1 text-danger mb-3"></i>
+                <i className="bi bi-x-circle fs-1 text-danger mb-3"></i>
                 <p className="mb-2">{conflictMessage}</p>
                 <p className="mb-0">Would you like to reschedule or cancel your appointment?</p>
               </div>
@@ -480,6 +484,21 @@ const BillingHistory = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Reschedule Modal Overlay */}
+      {showRescheduleModal && rescheduleAppointmentId && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2200 }}>
+          <RescheduleAppointment
+            isOpen={true}
+            onClose={() => {
+              setShowRescheduleModal(false);
+              setRescheduleAppointmentId(null);
+              fetchBillingData();
+            }}
+            appointmentId={rescheduleAppointmentId} // <-- pass as prop
+          />
         </div>
       )}
 

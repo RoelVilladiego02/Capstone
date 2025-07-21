@@ -36,15 +36,15 @@ const CONCERN_TO_SPECIALIZATION = {
   'OBGyne': ['OB GYNE'],
 };
 
-const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCancel, isOpen = false }) => {
+const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId = '', initialType = 'Walk-in', initialConcern = '', initialNotes = '', initialPaymentMethod = 'credit_card', onSuccess, onCancel, isOpen = false }) => {
   const [appointment, setAppointment] = useState({
     date: initialDate,
     time: initialTime,
-    doctorId: '',
-    type: 'Walk-in',
-    concern: '',
-    notes: '',
-    paymentMethod: 'credit_card', // Default to Credit Card (backend key)
+    doctorId: initialDoctorId,
+    type: initialType,
+    concern: initialConcern,
+    notes: initialNotes,
+    paymentMethod: initialPaymentMethod, // Default to Credit Card (backend key)
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -61,8 +61,8 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
   const [conflictError, setConflictError] = useState('');
   const [timeConflictError, setTimeConflictError] = useState('');
   const [allDoctors, setAllDoctors] = useState([]); // store all doctors
-  const [selectedConcern, setSelectedConcern] = useState('');
-  const [otherConcern, setOtherConcern] = useState('');
+  const [selectedConcern, setSelectedConcern] = useState(initialConcern && COMMON_CONCERNS.some(c => c.value === initialConcern) ? initialConcern : (initialConcern ? 'Other' : ''));
+  const [otherConcern, setOtherConcern] = useState(initialConcern && !COMMON_CONCERNS.some(c => c.value === initialConcern) ? initialConcern : '');
   
   useEffect(() => {
     if (isOpen) {
@@ -129,15 +129,29 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', onSuccess, onCanc
     availableTimes = generateTimeSlots(selectedDoctor.time_availability, 30);
   }
 
-  // Update form when initialDate or initialTime props change
+  // Update form when initialDate, initialTime, or other initial props change
   useEffect(() => {
     setAppointment(prev => ({
       ...prev,
       date: initialDate || prev.date,
       time: initialTime || prev.time,
-      type: prev.type || 'Walk-in'
+      doctorId: initialDoctorId || prev.doctorId,
+      type: initialType || prev.type,
+      concern: initialConcern || prev.concern,
+      notes: initialNotes || prev.notes,
+      paymentMethod: initialPaymentMethod || prev.paymentMethod,
     }));
-  }, [initialDate, initialTime]);
+    // Set selectedConcern and otherConcern
+    if (initialConcern) {
+      if (COMMON_CONCERNS.some(c => c.value === initialConcern)) {
+        setSelectedConcern(initialConcern);
+        setOtherConcern('');
+      } else {
+        setSelectedConcern('Other');
+        setOtherConcern(initialConcern);
+      }
+    }
+  }, [initialDate, initialTime, initialDoctorId, initialType, initialConcern, initialNotes, initialPaymentMethod]);
 
   // Update concern in appointment state when dropdown or textarea changes
   useEffect(() => {

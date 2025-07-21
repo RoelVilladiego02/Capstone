@@ -40,6 +40,7 @@ import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
 import InventoryManagerDashboard from './pages/inventory/InventoryManagerDashboard';
 import PatientDashboard from './pages/patient/PatientDashboard';
 import GeneralInventoryReports from './pages/GeneralInventoryReports';
+import RescheduleAppointment from './pages/RescheduleAppointment';
 
 function App() {
   const { currentUser, loading } = useAuth();
@@ -97,6 +98,12 @@ function App() {
           <Route path="/appointments/*" element={
             <PrivateRoute roles={['Admin', 'Doctor', 'Receptionist', 'Patient']}>
               <Appointments />
+            </PrivateRoute>
+          } />
+          {/* Reschedule Appointment Route */}
+          <Route path="/appointments/reschedule" element={
+            <PrivateRoute roles={['Admin', 'Doctor', 'Receptionist', 'Patient']}>
+              <RescheduleAppointment />
             </PrivateRoute>
           } />
 
