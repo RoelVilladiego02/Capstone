@@ -91,32 +91,47 @@ class AnalyticsController extends Controller
     {
         $today = Carbon::today();
         
-        // Get today's patients for this doctor
+        // Get today's patients (both completed and upcoming)
         $todayPatients = Appointment::where('doctor_id', $doctorId)
             ->whereDate('date', $today)
             ->count();
         
-        // Get pending medical records (records created today but not completed)
+        // Get checked-in patients (actual visits)
+        $checkedInPatients = Appointment::where('doctor_id', $doctorId)
+            ->whereDate('date', $today)
+            ->where('status', 'Checked In')
+            ->count();
+        
+        // Get completed consultations
+        $completedConsultations = Appointment::where('doctor_id', $doctorId)
+            ->whereDate('date', $today)
+            ->where('status', 'Completed')
+            ->count();
+        
+        // Get pending medical records
         $pendingRecords = \App\Models\MedicalRecord::where('doctor_id', $doctorId)
             ->whereDate('created_at', $today)
             ->where('status', '!=', 'Completed')
             ->count();
         
-        // Get pending diagnostics (medical records that need follow-up)
+        // Get pending diagnostics
         $pendingDiagnostics = \App\Models\MedicalRecord::where('doctor_id', $doctorId)
             ->where('status', 'Pending Review')
             ->count();
         
-        // Get pending prescriptions (prescriptions created today)
+        // Get pending prescriptions
         $pendingPrescriptions = \App\Models\Prescription::where('doctor_id', $doctorId)
             ->whereDate('created_at', $today)
+            ->where('status', 'Pending')
             ->count();
         
         return response()->json([
             'today_patients' => $todayPatients,
+            'checked_in_patients' => $checkedInPatients,
+            'completed_consultations' => $completedConsultations,
             'pending_records' => $pendingRecords,
             'pending_diagnostics' => $pendingDiagnostics,
-            'pending_prescriptions' => $pendingPrescriptions,
+            'pending_prescriptions' => $pendingPrescriptions
         ]);
     }
 
