@@ -26,6 +26,8 @@ const BillingHistory = () => {
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictAppointmentId, setConflictAppointmentId] = useState(null);
   const [conflictMessage, setConflictMessage] = useState('');
+  const [showCancelledModal, setShowCancelledModal] = useState(false);
+  const [cancelledMessage, setCancelledMessage] = useState('');
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
 
@@ -71,15 +73,15 @@ const BillingHistory = () => {
 
   const handleCancelAppointment = async () => {
     if (!conflictAppointmentId) return;
-    try {
-      await appointmentService.cancelAppointment(conflictAppointmentId);
-      setShowConflictModal(false);
-      // Update UI to show cancellation was successful
-      setShowCancelledModal(true);
-      fetchBillingData();
-    } catch (err) {
-      setError('Failed to cancel appointment. Please try again.');
-    }
+    await appointmentService.cancelAppointment(conflictAppointmentId);
+    setShowConflictModal(false);
+    fetchBillingData();
+  };
+
+  const handleCancelledModalClose = () => {
+    setShowCancelledModal(false);
+    // Redirect to appointment booking page (adjust route as needed)
+    window.location.href = '/appointments';
   };
 
   const fetchBillingData = useCallback(async () => {
@@ -604,7 +606,7 @@ const BillingHistory = () => {
               </div>
               <div className="modal-body text-center">
                 <i className="bi bi-x-circle fs-1 text-danger mb-3"></i>
-                <p className="mb-2">{conflictMessage}</p>
+                <p className="mb-2">{cancelledMessage}</p>
               </div>
               <div className="modal-footer justify-content-center">
                 <button className="btn btn-primary" onClick={handleCancelledModalClose}>Book New Appointment</button>
