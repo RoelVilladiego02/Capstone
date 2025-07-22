@@ -26,8 +26,6 @@ const BillingHistory = () => {
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictAppointmentId, setConflictAppointmentId] = useState(null);
   const [conflictMessage, setConflictMessage] = useState('');
-  const [showCancelledModal, setShowCancelledModal] = useState(false);
-  const [cancelledMessage, setCancelledMessage] = useState('');
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null);
 
@@ -73,15 +71,15 @@ const BillingHistory = () => {
 
   const handleCancelAppointment = async () => {
     if (!conflictAppointmentId) return;
-    await appointmentService.cancelAppointment(conflictAppointmentId);
-    setShowConflictModal(false);
-    fetchBillingData();
-  };
-
-  const handleCancelledModalClose = () => {
-    setShowCancelledModal(false);
-    // Redirect to appointment booking page (adjust route as needed)
-    window.location.href = '/appointments';
+    try {
+      await appointmentService.cancelAppointment(conflictAppointmentId);
+      setShowConflictModal(false);
+      // Update UI to show cancellation was successful
+      setShowCancelledModal(true);
+      fetchBillingData();
+    } catch (err) {
+      setError('Failed to cancel appointment. Please try again.');
+    }
   };
 
   const fetchBillingData = useCallback(async () => {
@@ -157,20 +155,33 @@ const BillingHistory = () => {
 
   const getStatusBadgeClass = (status) => {
     switch(status?.toLowerCase()) {
-      case 'paid': return 'bg-success';
-      case 'pending': return 'bg-warning text-dark';
-      case 'overdue': return 'bg-danger';
-      default: return 'bg-secondary';
+      case 'paid': return 'bg-success-subtle text-success border border-success';
+      case 'pending': return 'bg-warning-subtle text-warning border border-warning';
+      case 'overdue': return 'bg-danger-subtle text-danger border border-danger';
+      default: return 'bg-secondary-subtle text-secondary border border-secondary';
     }
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('all');
+    setDateRange({ start: '', end: '' });
   };
 
   if (loading) {
     return (
-      <div className="d-flex flex-column align-items-center justify-content-center min-vh-100">
-        <div className="spinner-border text-primary mb-3" role="status">
-          <span className="visually-hidden">Loading...</span>
+      <div className="container-fluid py-5">
+        <div className="row justify-content-center">
+          <div className="col-md-8 col-lg-6">
+            <div className="text-center">
+              <div className="spinner-grow text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <h4 className="text-primary mt-3 mb-1">Loading Billing History</h4>
+              <p className="text-muted">Please wait while we fetch your billing information</p>
+            </div>
+          </div>
         </div>
-        <p className="text-primary">Loading your billing history...</p>
       </div>
     );
   }
@@ -186,85 +197,107 @@ const BillingHistory = () => {
 
   return (
     <div className="container-fluid py-4">
-      {/* Summary Cards */}
-      <div className="row g-3 mb-4">
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Pending Bills</h6>
-                  <h3 className="mb-0">₱{billingSummary.totalPending.toLocaleString()}</h3>
-                </div>
-                <div className="rounded-circle p-3 bg-warning-subtle">
+      {/* Enhanced Summary Cards */}
+      <div className="row g-4 mb-4">
+        <div className="col-xl-3 col-md-6">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body position-relative p-4">
+              <div className="d-flex align-items-center mb-3">
+                <div className="rounded-circle bg-warning-subtle p-3 me-3">
                   <i className="bi bi-hourglass-split text-warning fs-4"></i>
                 </div>
+                <div>
+                  <h6 className="text-muted mb-1">Pending Bills</h6>
+                  <h3 className="mb-0">₱{billingSummary.totalPending.toLocaleString()}</h3>
+                </div>
+              </div>
+              <div className="progress" style={{ height: '4px' }}>
+                <div 
+                  className="progress-bar bg-warning" 
+                  style={{ width: `${(billingSummary.totalPending / (billingSummary.totalPending + billingSummary.totalPaid + billingSummary.totalOverdue)) * 100}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Paid Bills</h6>
-                  <h3 className="mb-0">₱{billingSummary.totalPaid.toLocaleString()}</h3>
-                </div>
-                <div className="rounded-circle p-3 bg-success-subtle">
+        <div className="col-xl-3 col-md-6">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body position-relative p-4">
+              <div className="d-flex align-items-center mb-3">
+                <div className="rounded-circle bg-success-subtle p-3 me-3">
                   <i className="bi bi-check-circle text-success fs-4"></i>
                 </div>
+                <div>
+                  <h6 className="text-muted mb-1">Paid Bills</h6>
+                  <h3 className="mb-0">₱{billingSummary.totalPaid.toLocaleString()}</h3>
+                </div>
+              </div>
+              <div className="progress" style={{ height: '4px' }}>
+                <div 
+                  className="progress-bar bg-success" 
+                  style={{ width: `${(billingSummary.totalPaid / (billingSummary.totalPending + billingSummary.totalPaid + billingSummary.totalOverdue)) * 100}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Overdue</h6>
-                  <h3 className="mb-0">₱{billingSummary.totalOverdue.toLocaleString()}</h3>
-                </div>
-                <div className="rounded-circle p-3 bg-danger-subtle">
+        <div className="col-xl-3 col-md-6">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body position-relative p-4">
+              <div className="d-flex align-items-center mb-3">
+                <div className="rounded-circle bg-danger-subtle p-3 me-3">
                   <i className="bi bi-exclamation-circle text-danger fs-4"></i>
                 </div>
+                <div>
+                  <h6 className="text-muted mb-1">Overdue</h6>
+                  <h3 className="mb-0">₱{billingSummary.totalOverdue.toLocaleString()}</h3>
+                </div>
+              </div>
+              <div className="progress" style={{ height: '4px' }}>
+                <div 
+                  className="progress-bar bg-danger" 
+                  style={{ width: `${(billingSummary.totalOverdue / (billingSummary.totalPending + billingSummary.totalPaid + billingSummary.totalOverdue)) * 100}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 className="text-muted mb-2">Total Bills</h6>
-                  <h3 className="mb-0">{billingSummary.totalBills}</h3>
-                </div>
-                <div className="rounded-circle p-3 bg-primary-subtle">
+        <div className="col-xl-3 col-md-6">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body position-relative p-4">
+              <div className="d-flex align-items-center mb-3">
+                <div className="rounded-circle bg-primary-subtle p-3 me-3">
                   <i className="bi bi-receipt text-primary fs-4"></i>
                 </div>
+                <div>
+                  <h6 className="text-muted mb-1">Total Bills</h6>
+                  <h3 className="mb-0">{billingSummary.totalBills}</h3>
+                </div>
+              </div>
+              <div className="progress" style={{ height: '4px' }}>
+                <div 
+                  className="progress-bar bg-primary" 
+                  style={{ width: `${((billingSummary.totalBills - billingSummary.totalPending) / billingSummary.totalBills) * 100}%` }}
+                />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Billing Table */}
-      <div className="card border-0 shadow-sm">
-        <div className="card-header bg-white py-3">
-          <div className="row g-3 align-items-center">
+      {/* Enhanced Search and Filters */}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <div className="row g-3">
             <div className="col-md-4">
-              <div className="input-group">
-                <span className="input-group-text bg-light border-end-0">
-                  <i className="bi bi-search"></i>
-                </span>
+              <div className="position-relative">
+                <i className="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                 <input
                   type="text"
-                  className="form-control border-start-0"
+                  className="form-control ps-5"
                   placeholder="Search bills..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -289,72 +322,131 @@ const BillingHistory = () => {
                   type="date"
                   className="form-control"
                   value={dateRange.start}
-                  onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                 />
-                <span className="input-group-text bg-light">to</span>
+                <span className="input-group-text bg-light border-0">to</span>
                 <input
                   type="date"
                   className="form-control"
                   value={dateRange.end}
-                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                 />
               </div>
             </div>
+            <div className="col-md-2">
+              <button 
+                className="btn btn-light w-100" 
+                onClick={clearFilters}
+                disabled={!searchTerm && filterStatus === 'all' && !dateRange.start && !dateRange.end}
+              >
+                <i className="bi bi-arrow-clockwise me-2"></i>
+                Reset Filters
+              </button>
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* Enhanced Bills Table */}
+      <div className="card border-0 shadow-sm">
         <div className="card-body p-0">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
               <thead className="bg-light">
                 <tr>
-                  <th>Bill #</th>
-                  <th>Date</th>
-                  <th>Due Date</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Payment Method</th>
-                  <th>Actions</th>
+                  <th className="border-0 px-4">
+                    <div className="text-muted">Bill #</div>
+                  </th>
+                  <th className="border-0">
+                    <div className="text-muted">Date</div>
+                  </th>
+                  <th className="border-0">
+                    <div className="text-muted">Due Date</div>
+                  </th>
+                  <th className="border-0">
+                    <div className="text-muted">Amount</div>
+                  </th>
+                  <th className="border-0">
+                    <div className="text-muted">Status</div>
+                  </th>
+                  <th className="border-0">
+                    <div className="text-muted">Payment Method</div>
+                  </th>
+                  <th className="border-0 px-4">
+                    <div className="text-muted">Actions</div>
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="border-top-0">
                 {transactions.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center py-4 text-muted">
-                      No billing records found
+                    <td colSpan="7" className="text-center py-5">
+                      <img 
+                        src="/images/empty-bills.svg" 
+                        alt="No bills" 
+                        style={{ width: '120px', opacity: 0.5 }}
+                        className="mb-3"
+                      />
+                      <h5 className="text-muted mb-2">No Bills Found</h5>
+                      <p className="text-muted mb-0">Try adjusting your search or filters</p>
                     </td>
                   </tr>
                 ) : (
                   transactions.map(bill => (
                     <tr key={bill.id}>
-                      <td>{bill.receipt_no || bill.id}</td>
-                      <td>{bill.created_at ? new Date(bill.created_at).toLocaleDateString() : '-'}</td>
-                      <td>{bill.due_date ? new Date(bill.due_date).toLocaleDateString() : '-'}</td>
-                      <td>₱{bill.amount?.toLocaleString()}</td>
+                      <td className="px-4">
+                        <div className="d-flex align-items-center">
+                          <div className="rounded-circle bg-primary-subtle p-2 me-3">
+                            <i className="bi bi-receipt text-primary"></i>
+                          </div>
+                          <div>
+                            <div className="fw-medium">{bill.receipt_no}</div>
+                            <small className="text-muted">{bill.type}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{new Date(bill.created_at).toLocaleDateString()}</td>
                       <td>
-                        <span className={`badge ${getStatusBadgeClass(bill.status)}`}>
+                        <div>
+                          {new Date(bill.due_date).toLocaleDateString()}
+                          {new Date(bill.due_date) < new Date() && bill.status !== 'Paid' && (
+                            <div className="text-danger small">
+                              <i className="bi bi-exclamation-circle me-1"></i>
+                              Overdue
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="fw-medium">₱{bill.amount?.toLocaleString()}</span>
+                      </td>
+                      <td>
+                        <span className={`badge ${getStatusBadgeClass(bill.status)} px-3 py-2`}>
                           {bill.status}
                         </span>
-                        {bill.status === 'Pending' && (
-                          <button className="btn btn-sm btn-primary ms-2" onClick={() => handlePayNow(bill)}>
-                            Pay Now
-                          </button>
-                        )}
                       </td>
                       <td>
-                        {bill.payment_method ? bill.payment_method : '-'}
+                        <div className="d-flex align-items-center">
+                          <i className="bi bi-credit-card me-2 text-muted"></i>
+                          <span>{bill.payment_method?.replace('_', ' ')}</span>
+                        </div>
                       </td>
-                      <td>
-                        <div className="btn-group">
+                      <td className="px-4">
+                        <div className="d-flex gap-2">
                           <button 
-                            className="btn btn-sm btn-outline-primary"
+                            className="btn btn-sm btn-light" 
                             onClick={() => setSelectedBill(bill)}
                           >
-                            <i className="bi bi-eye me-1"></i>View
+                            View
                           </button>
-                          <button className="btn btn-sm btn-outline-secondary">
-                            <i className="bi bi-download me-1"></i>Download
-                          </button>
+                          {bill.status === 'Pending' && (
+                            <button 
+                              className="btn btn-sm btn-primary"
+                              onClick={() => handlePayNow(bill)}
+                            >
+                              Pay Now
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -512,7 +604,7 @@ const BillingHistory = () => {
               </div>
               <div className="modal-body text-center">
                 <i className="bi bi-x-circle fs-1 text-danger mb-3"></i>
-                <p className="mb-2">{cancelledMessage}</p>
+                <p className="mb-2">{conflictMessage}</p>
               </div>
               <div className="modal-footer justify-content-center">
                 <button className="btn btn-primary" onClick={handleCancelledModalClose}>Book New Appointment</button>

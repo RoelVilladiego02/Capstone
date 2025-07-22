@@ -145,6 +145,7 @@ const MyAppointments = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
+      'Pending': { color: 'warning text-dark', icon: 'bi-hourglass-split' },
       'Scheduled': { color: 'primary', icon: 'bi-calendar-check' },
       'Confirmed': { color: 'success', icon: 'bi-check-circle' },
       'Checked In': { color: 'info', icon: 'bi-person-check' },
@@ -163,18 +164,16 @@ const MyAppointments = () => {
     );
   };
 
-  const getTypeIcon = (type) => {
-    const typeIcons = {
-      'Consultation': 'bi-stethoscope',
-      'Teleconsultation': 'bi-camera-video',
-      'Follow-up': 'bi-arrow-clockwise',
-      'Emergency': 'bi-exclamation-triangle',
-      'Check-up': 'bi-heart-pulse'
-    };
-    return typeIcons[type] || 'bi-calendar-event';
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+
+  const handleReschedule = (appointment) => {
+    console.log('Reschedule clicked:', appointment);
+    setRescheduleAppointment(appointment);
+    setShowRescheduleModal(true);
   };
 
-  const AppointmentCard = ({ appointment, isUpcoming = true }) => {
+  const AppointmentCard = ({ appointment, isUpcoming = true, onReschedule }) => {
     const appointmentDate = new Date(`${appointment.date} ${appointment.time}`);
     const isToday = appointmentDate.toDateString() === new Date().toDateString();
 
@@ -183,8 +182,8 @@ const MyAppointments = () => {
         <div className="card-body p-4">
           <div className="d-flex justify-content-between align-items-start mb-3">
             <div className="d-flex align-items-center">
-              <div className={`rounded-circle p-3 me-3 ${isToday ? 'bg-primary' : 'bg-light'}`}>
-                <i className={`bi ${getTypeIcon(appointment.type)} ${isToday ? 'text-white' : 'text-primary'}`} style={{ fontSize: '1.5rem' }}></i>
+              <div className={`rounded-circle p-3 me-3 ${isToday ? 'bg-primary' : 'bg-light'}`}> 
+                <i className={`bi bi-calendar-event ${isToday ? 'text-white' : 'text-primary'}`} style={{ fontSize: '1.5rem' }}></i>
               </div>
               <div>
                 <h6 className="mb-1 fw-bold">{appointment.type}</h6>
@@ -194,7 +193,14 @@ const MyAppointments = () => {
               </div>
             </div>
             <div className="text-end">
-              {getStatusBadge(appointment.status)}
+              {appointment.status === 'Pending' ? (
+                <span className="badge bg-warning text-dark">
+                  <i className="bi bi-hourglass-split me-1"></i>
+                  Pending Payment
+                </span>
+              ) : (
+                getStatusBadge(appointment.status)
+              )}
             </div>
           </div>
 
@@ -221,7 +227,7 @@ const MyAppointments = () => {
                 <i className="bi bi-clock text-muted me-2"></i>
                 <div>
                   <small className="text-muted d-block">Time</small>
-                  <span className="fw-medium">{normalizeTime(appointment.time)}</span>
+                  <span className="fw-medium">{appointment.time}</span>
                 </div>
               </div>
             </div>
@@ -236,7 +242,7 @@ const MyAppointments = () => {
 
           {isUpcoming && appointment.status === 'Scheduled' && (
             <div className="d-flex gap-2">
-              <button className="btn btn-outline-primary btn-sm">
+              <button className="btn btn-outline-primary btn-sm" onClick={() => onReschedule(appointment)}>
                 <i className="bi bi-pencil me-1"></i>Reschedule
               </button>
               <button className="btn btn-outline-danger btn-sm">
@@ -248,6 +254,9 @@ const MyAppointments = () => {
       </div>
     );
   };
+
+  // Debug log
+  console.log('showRescheduleModal:', showRescheduleModal, 'rescheduleAppointment:', rescheduleAppointment);
 
   if (loading) {
     return (
@@ -358,7 +367,11 @@ const MyAppointments = () => {
                 <div className="row">
                   {upcomingAppointments.map((appointment) => (
                     <div key={appointment.id} className="col-lg-6 col-xl-4">
-                      <AppointmentCard appointment={appointment} isUpcoming={true} />
+                      <AppointmentCard
+                        appointment={appointment}
+                        isUpcoming={true}
+                        onReschedule={handleReschedule}
+                      />
                     </div>
                   ))}
                 </div>
@@ -385,7 +398,11 @@ const MyAppointments = () => {
                 <div className="row">
                   {pastAppointments.map((appointment) => (
                     <div key={appointment.id} className="col-lg-6 col-xl-4">
-                      <AppointmentCard appointment={appointment} isUpcoming={false} />
+                      <AppointmentCard
+                        appointment={appointment}
+                        isUpcoming={false}
+                        onReschedule={handleReschedule}
+                      />
                     </div>
                   ))}
                 </div>
@@ -413,6 +430,32 @@ const MyAppointments = () => {
             setSuccessMessage('');
           }}
         />
+      )}
+
+      {showRescheduleModal && rescheduleAppointment && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2200 }}>
+          <AppointmentForm
+            isOpen={true}
+            initialDoctorId={rescheduleAppointment.doctor_id}
+            initialType={rescheduleAppointment.type}
+            initialConcern={rescheduleAppointment.concern}
+            initialNotes={rescheduleAppointment.notes}
+            initialPaymentMethod={rescheduleAppointment.payment_method}
+            initialDate={''}
+            initialTime={''}
+            appointmentId={rescheduleAppointment.id}
+            isReschedule={true}
+            onSuccess={() => {
+              setShowRescheduleModal(false);
+              setRescheduleAppointment(null);
+              // fetchAppointments(); // Uncomment if you have this function
+            }}
+            onCancel={() => {
+              setShowRescheduleModal(false);
+              setRescheduleAppointment(null);
+            }}
+          />
+        </div>
       )}
     </div>
   );

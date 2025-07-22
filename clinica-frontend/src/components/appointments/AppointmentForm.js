@@ -20,7 +20,7 @@ const COMMON_CONCERNS = [
   { label: 'General Adult Checkup / Illness', value: 'GeneralAdult' },
   { label: 'Child Health / Pediatric', value: 'Pediatric' },
   { label: 'Women\'s Health / OB-Gyne', value: 'OBGyne' },
-  { label: 'Other', value: 'Other' },
+  { label: 'Other', value: 'Other' }
 ];
 
 const CONCERN_TO_SPECIALIZATION = {
@@ -36,7 +36,7 @@ const CONCERN_TO_SPECIALIZATION = {
   'OBGyne': ['OB GYNE'],
 };
 
-const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId = '', initialType = 'Walk-in', initialConcern = '', initialNotes = '', initialPaymentMethod = 'credit_card', onSuccess, onCancel, isOpen = false }) => {
+const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId = '', initialType = 'Walk-in', initialConcern = '', initialNotes = '', initialPaymentMethod = 'credit_card', onSuccess, onCancel, isOpen = false, isReschedule = false, appointmentId = null, hidePaymentFields = false }) => {
   const [appointment, setAppointment] = useState({
     date: initialDate,
     time: initialTime,
@@ -57,12 +57,12 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
   const [isSlotAvailable, setIsSlotAvailable] = useState(true);
   const [formErrors, setFormErrors] = useState({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState(null); // 'Scheduled' or 'Pending'
   const [conflictError, setConflictError] = useState('');
   const [timeConflictError, setTimeConflictError] = useState('');
   const [allDoctors, setAllDoctors] = useState([]); // store all doctors
   const [selectedConcern, setSelectedConcern] = useState(initialConcern && COMMON_CONCERNS.some(c => c.value === initialConcern) ? initialConcern : (initialConcern ? 'Other' : ''));
   const [otherConcern, setOtherConcern] = useState(initialConcern && !COMMON_CONCERNS.some(c => c.value === initialConcern) ? initialConcern : '');
+  const [successMessage, setSuccessMessage] = useState(null);
   
   useEffect(() => {
     if (isOpen) {
@@ -122,10 +122,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
 
   let availableTimes = [];
   if (selectedDoctor && Array.isArray(selectedDoctor.time_availability) && appointment.date) {
-    // Only use time ranges for the selected weekday
-    const weekday = getWeekday(appointment.date);
-    // If doctor has multiple time_availability objects for different days, filter by day if needed
-    // (Assume all ranges apply for now, or extend logic if you store day info per range)
+    // Only use time ranges for the selected date
     availableTimes = generateTimeSlots(selectedDoctor.time_availability, 30);
   }
 
@@ -302,14 +299,12 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
   // When user confirms payment
   const handlePaymentConfirm = async () => {
     setShowPaymentModal(false);
-    setPendingStatus('Scheduled');
     await handleSubmit('Scheduled');
   };
 
   // When user cancels payment
   const handlePaymentCancel = async () => {
     setShowPaymentModal(false);
-    setPendingStatus('Pending');
     await handleSubmit('Pending');
   };
 
@@ -328,25 +323,42 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
       ...appointment,
       doctor_id: selectedDoctor?.id, // Use doctor.id (doctors table)
       patient_id: patient.id,
-      status: statusOverride || 'Scheduled',
+      status: isReschedule ? 'Scheduled' : (statusOverride || 'Scheduled'), // Always set to Scheduled for reschedules
       payment_method: appointment.paymentMethod, // Ensure payment_method is sent
     };
 
     try {
-      const createdAppointment = await appointmentService.createAppointment(payload);
+      let createdOrUpdatedAppointment;
+      if (isReschedule && appointmentId) {
+        console.log('Rescheduling appointment:', appointmentId, 'with payload:', payload);
+        // UPDATE existing appointment with just the new date and time
+        createdOrUpdatedAppointment = await appointmentService.updateAppointment(appointmentId, {
+          date: payload.date,
+          time: payload.time,
+          status: 'Scheduled' // Ensure it stays scheduled
+        });
+        console.log('Appointment rescheduled:', createdOrUpdatedAppointment);
+        
+        // Skip bill creation for reschedules since we're just updating the appointment
+        setSuccess(true);
+        return;
+      }
+
+      // For new appointments, continue with existing logic
+      createdOrUpdatedAppointment = await appointmentService.createAppointment(payload);
       // Now create the bill, using the new appointment's id and correct patient/doctor ids
       try {
         const today = new Date();
         const dueDate = today.toISOString().split('T')[0];
         const randomReceipt = 'RCPT-' + Math.floor(Math.random() * 1000000000);
-        if (!createdAppointment.id || !createdAppointment.patient_id || !createdAppointment.doctor_id) {
-          console.error('Missing required fields for bill creation:', createdAppointment);
+        if (!createdOrUpdatedAppointment.id || !createdOrUpdatedAppointment.patient_id || !createdOrUpdatedAppointment.doctor_id) {
+          console.error('Missing required fields for bill creation:', createdOrUpdatedAppointment);
           setError('Failed to create bill: missing appointment information.');
           return;
         }
         await import('../../services/billingService').then(({ billingService }) =>
           billingService.createBill({
-            patient_id: createdAppointment.patient_id,
+            patient_id: createdOrUpdatedAppointment.patient_id,
             doctor_id: selectedDoctor?.id, // Use doctor.id (doctors table)
             receipt_no: randomReceipt,
             type: 'Downpayment',
@@ -355,100 +367,30 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
             payment_method: appointment.paymentMethod,
             due_date: dueDate,
             paid_at: null,
-            description: `Downpayment for appointment #${createdAppointment.id}`,
-            appointment_id: createdAppointment.id,
+            description: `Downpayment for appointment #${createdOrUpdatedAppointment.id}`,
+            appointment_id: createdOrUpdatedAppointment.id,
           })
         );
       } catch (billErr) {
         console.error('Error creating downpayment bill:', billErr);
         setError('Failed to create bill for this appointment. Please contact support.');
       }
+      
       setSuccess(true);
-      setAppointment({
-        date: '',
-        time: '',
-        doctorId: '',
-        type: 'Walk-in',
-        concern: '',
-        notes: '',
-        paymentMethod: 'credit_card',
-      });
-      setFormErrors({});
-      setSelectedConcern(''); // Reset dropdown
-      setOtherConcern(''); // Reset textarea
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess(payload);
-        }
-      }, 1500);
-    } catch (err) {
-      console.error('Error creating appointment:', err);
-      if (err.response?.data?.errors) {
-        const validationErrors = err.response.data.errors;
-        const errorMessages = Object.values(validationErrors).flat();
-        setError(errorMessages.join('. '));
+      // Set different success messages based on payment status
+      if (statusOverride === 'Pending') {
+        setSuccessMessage({
+          title: 'Appointment Reserved',
+          body: 'Your appointment is pending payment. Please note that this slot may be taken by another patient who pays first.'
+        });
       } else {
-        setError(err.message || 'Failed to schedule appointment. Please try again.');
+        setSuccessMessage({
+          title: 'Appointment Scheduled Successfully!',
+          body: 'Your appointment has been confirmed and scheduled. You will receive a confirmation shortly.'
+        });
       }
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const processAppointmentSubmission = async (paymentConfirmed) => {
-    setShowPaymentModal(false);
-    setLoading(true);
-    setError('');
-    try {
-      const appointmentStatus = paymentConfirmed ? 'Scheduled' : 'Pending';
-      const billStatus = paymentConfirmed ? 'Paid' : 'Pending';
-      const appointmentData = {
-        patient_id: Number(patient.id),
-        doctor_id: selectedDoctor?.id, // Use doctor.id (doctors table)
-        date: appointment.date,
-        time: appointment.time,
-        concern: selectedConcern === 'Other' ? otherConcern : selectedConcern,
-        notes: appointment.notes,
-        type: appointment.type,
-        status: appointmentStatus,
-        payment_method: appointment.paymentMethod, // Ensure payment_method is sent
-      };
-      const response = await appointmentService.createAppointment(appointmentData);
-      console.log('Appointment creation response:', response); // <-- Add this
-
-      // Create bill
-      try {
-        const today = new Date();
-        const dueDate = today.toISOString().split('T')[0];
-        const randomReceipt = 'RCPT-' + Math.floor(Math.random() * 1000000000);
-
-        // Check required fields
-        if (!response.id || !response.patient_id || !response.doctor_id) {
-          console.error('Missing required fields for bill creation:', response);
-          setError('Failed to create bill: missing appointment information.');
-          return;
-        }
-
-        await import('../../services/billingService').then(({ billingService }) =>
-          billingService.createBill({
-            patient_id: response.patient_id,
-            doctor_id: selectedDoctor?.id, // Use doctor.id (doctors table)
-            receipt_no: randomReceipt,
-            type: 'Downpayment',
-            amount: 500,
-            status: billStatus,
-            payment_method: appointment.paymentMethod,
-            due_date: dueDate,
-            paid_at: billStatus === 'Paid' ? dueDate : null,
-            description: `Downpayment for appointment #${response.id}`,
-            appointment_id: response.id,
-          })
-        );
-      } catch (billErr) {
-        console.error('Error creating downpayment bill:', billErr);
-        setError('Failed to create bill for this appointment. Please contact support.');
-      }
-      setSuccess(true);
+      // Reset form
       setAppointment({
         date: '',
         time: '',
@@ -459,13 +401,18 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
         paymentMethod: 'credit_card',
       });
       setFormErrors({});
-      setSelectedConcern(''); // Reset dropdown
-      setOtherConcern(''); // Reset textarea
+      setSelectedConcern('');
+      setOtherConcern('');
+
+      // Clear success message and close form after delay
       setTimeout(() => {
         if (onSuccess) {
-          onSuccess(response);
+          onSuccess(createdOrUpdatedAppointment);
         }
+        setSuccess(false);
+        setSuccessMessage(null);
       }, 1500);
+
     } catch (err) {
       console.error('Error creating appointment:', err);
       if (err.response?.data?.errors) {
@@ -528,18 +475,52 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
     return 'form-control';
   };
 
-  const getSelectClass = (field) => {
-    if (formErrors[field]) return 'form-select is-invalid';
-    if (appointment[field] && !formErrors[field]) return 'form-select is-valid';
-    return 'form-select';
-  };
-
   if (!isOpen) {
     return null;
   }
 
-  if (patientLoading) return <div>Loading patient info...</div>;
-  if (!patient) return <div className="alert alert-danger">Unable to load patient profile. Please contact support.</div>;
+  if (patientLoading) return (
+    <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1055 }}>
+      <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div className="modal-content border-0 shadow-lg">
+          <div className="modal-header bg-primary text-white">
+            <h5 className="modal-title">Loading Appointment Form</h5>
+          </div>
+          <div className="modal-body p-5">
+            <div className="d-flex flex-column align-items-center justify-content-center py-4">
+              <div className="spinner-border text-primary mb-3" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="text-primary mb-0">Loading patient information...</p>
+              <small className="text-muted">Please wait while we set up your appointment form</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!patient) return (
+    <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1055 }}>
+      <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div className="modal-content border-0 shadow-lg">
+          <div className="modal-header bg-danger text-white">
+            <h5 className="modal-title">Error Loading Profile</h5>
+            <button type="button" className="btn-close btn-close-white" onClick={onCancel} aria-label="Close"></button>
+          </div>
+          <div className="modal-body p-4">
+            <div className="alert alert-danger mb-0">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              Unable to load patient profile. Please contact support.
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onCancel}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const selectedWeekday = getWeekday(appointment.date);
 
@@ -554,7 +535,7 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
           <div className="modal-header bg-primary text-white" style={{ backgroundColor: '#E31937 !important' }}>
             <h5 className="modal-title d-flex align-items-center">
               <i className="bi bi-calendar-plus me-2"></i>
-              Schedule New Appointment
+              {isReschedule ? 'Reschedule Appointment' : 'Schedule New Appointment'}
             </h5>
             <button 
               type="button" 
@@ -575,12 +556,12 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
               </div>
             )}
             
-            {success && (
+            {success && successMessage && (
               <div className="alert alert-success d-flex align-items-center">
                 <i className="bi bi-check-circle-fill me-2"></i>
                 <div>
-                  <h6 className="mb-1">Appointment Scheduled Successfully!</h6>
-                  <small>Your appointment has been scheduled. You will receive a confirmation shortly.</small>
+                  <h6 className="mb-1">{successMessage.title}</h6>
+                  <small>{successMessage.body}</small>
                 </div>
               </div>
             )}
@@ -604,62 +585,6 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
                 </div>
 
                 <div className="row g-4">
-                  <div className="col-md-6">
-                    <label className="form-label fw-semibold">
-                      <i className="bi bi-calendar3 me-1"></i>
-                      Date <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      className={getFieldClass('date')}
-                      value={appointment.date}
-                      onChange={(e) => handleInputChange('date', e.target.value)}
-                      onBlur={(e) => validateField('date', e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                    {formErrors.date && (
-                      <div className="invalid-feedback">{formErrors.date}</div>
-                    )}
-                  </div>
-                  
-                  {/* Time selection: show dropdown if doctor is selected and has available times */}
-                  <div className="col-md-6">
-                    <label className="form-label fw-semibold">
-                      <i className="bi bi-clock me-1"></i>
-                      Time <span className="text-danger">*</span>
-                    </label>
-                    {selectedDoctor && availableTimes.length === 0 && (
-                      <div className="alert alert-warning mt-2">No available time slots for this doctor on this day.</div>
-                    )}
-                    {selectedDoctor && availableTimes.length > 0 ? (
-                      <select
-                        className={getFieldClass('time')}
-                        value={appointment.time}
-                        onChange={e => handleInputChange('time', e.target.value)}
-                        onBlur={e => validateField('time', e.target.value)}
-                        required
-                      >
-                        <option value="">Select a time</option>
-                        {availableTimes.map((time, idx) => (
-                          <option key={idx} value={time}>{time}</option>
-                        ))}
-                      </select>
-                    ) : !selectedDoctor ? (
-                      <input
-                        type="time"
-                        className={getFieldClass('time')}
-                        value={appointment.time}
-                        onChange={e => handleInputChange('time', e.target.value)}
-                        onBlur={e => validateField('time', e.target.value)}
-                        required
-                      />
-                    ) : null}
-                    {formErrors.time && (
-                      <div className="invalid-feedback">{formErrors.time}</div>
-                    )}
-                  </div>
-                  
                   {/* Doctor selection as cards */}
                   <div className="col-md-12 mb-3">
                     <label className="form-label fw-semibold">
@@ -720,37 +645,161 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
                     )}
                   </div>
                   
+                  {/* Date and Time fields */}
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">
-                      <i className="bi bi-type me-1"></i>
-                      Appointment Type <span className="text-danger">*</span>
+                      <i className="bi bi-calendar3 me-1"></i>
+                      Date <span className="text-danger">*</span>
                     </label>
-                    <select
-                      className="form-select"
-                      value={appointment.type}
-                      onChange={(e) => handleInputChange('type', e.target.value)}
+                    <input
+                      type="date"
+                      className={getFieldClass('date')}
+                      value={appointment.date}
+                      onChange={(e) => handleInputChange('date', e.target.value)}
+                      onBlur={(e) => validateField('date', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
                       required
-                    >
-                      <option value="Walk-in">🏥 Walk-in</option>
-                      <option value="Teleconsultation">💻 Teleconsultation</option>
-                    </select>
+                    />
+                    {formErrors.date && (
+                      <div className="invalid-feedback">{formErrors.date}</div>
+                    )}
                   </div>
                   
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">
-                      <i className="bi bi-credit-card me-1"></i>
-                      Payment Method
+                      <i className="bi bi-clock me-1"></i>
+                      Time <span className="text-danger">*</span>
                     </label>
-                    <select
-                      className="form-select"
-                      value={appointment.paymentMethod}
-                      onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
-                    >
-                      <option value="credit_card">💳 Credit Card</option>
-                      <option value="gcash">📱 GCash</option>
-                      <option value="paymaya">📱 PayMaya</option>
-                    </select>
+                    {selectedDoctor && availableTimes.length === 0 && (
+                      <div className="alert alert-warning mt-2">No available time slots for this doctor on this day.</div>
+                    )}
+                    {selectedDoctor && availableTimes.length > 0 ? (
+                      <select
+                        className={getFieldClass('time')}
+                        value={appointment.time}
+                        onChange={e => handleInputChange('time', e.target.value)}
+                        onBlur={e => validateField('time', e.target.value)}
+                        required
+                      >
+                        <option value="">Select a time</option>
+                        {availableTimes.map((time, idx) => (
+                          <option key={idx} value={time}>{time}</option>
+                        ))}
+                      </select>
+                    ) : !selectedDoctor ? (
+                      <input
+                        type="time"
+                        className={getFieldClass('time')}
+                        value={appointment.time}
+                        onChange={e => handleInputChange('time', e.target.value)}
+                        onBlur={e => validateField('time', e.target.value)}
+                        required
+                      />
+                    ) : null}
+                    {formErrors.time && (
+                      <div className="invalid-feedback">{formErrors.time}</div>
+                    )}
                   </div>
+                  
+                  {/* Only show type if not rescheduling */}
+                  {!isReschedule && (
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">
+                        <i className="bi bi-type me-1"></i>
+                        Appointment Type <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        value={appointment.type}
+                        onChange={(e) => handleInputChange('type', e.target.value)}
+                        required
+                      >
+                        <option value="Walk-in">🏥 Walk-in</option>
+                        <option value="Teleconsultation">💻 Teleconsultation</option>
+                      </select>
+                    </div>
+                  )}
+                  {/* Only show payment method if not rescheduling and not hidePaymentFields */}
+                  {!isReschedule && !hidePaymentFields && (
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">
+                        <i className="bi bi-credit-card me-1"></i>
+                        Payment Method
+                      </label>
+                      <select
+                        className="form-select"
+                        value={appointment.paymentMethod}
+                        onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
+                      >
+                        <option value="credit_card">💳 Credit Card</option>
+                        <option value="gcash">📱 GCash</option>
+                        <option value="paymaya">📱 PayMaya</option>
+                      </select>
+                    </div>
+                  )}
+                  {/* Only show concern and notes if not rescheduling */}
+                  {!isReschedule && (
+                    <>
+                      <div className="col-12">
+                        <label className="form-label fw-semibold">
+                          <i className="bi bi-chat-text me-1"></i>
+                          What is your main concern? <span className="text-danger">*</span>
+                        </label>
+                        <select
+                          className={formErrors.concern ? 'form-select is-invalid' : 'form-select'}
+                          value={selectedConcern}
+                          onChange={e => {
+                            setSelectedConcern(e.target.value);
+                            if (e.target.value !== 'Other') setOtherConcern('');
+                          }}
+                          required
+                        >
+                          <option value="">Select a concern</option>
+                          {COMMON_CONCERNS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {selectedConcern === 'Other' && (
+                          <textarea
+                            className={formErrors.concern ? 'form-control is-invalid' : 'form-control'}
+                            rows="3"
+                            value={otherConcern}
+                            onChange={e => setOtherConcern(e.target.value)}
+                            onBlur={e => validateField('concern', e.target.value)}
+                            placeholder="Please describe your symptoms or reason for visit in detail..."
+                            required
+                          />
+                        )}
+                        <div className="form-text">
+                          {selectedConcern === 'Other' ? (
+                            <span className={otherConcern.length < 10 ? 'text-muted' : 'text-success'}>
+                              {otherConcern.length} characters (minimum 10 required)
+                            </span>
+                          ) : (
+                            <span className="text-success">Selected: {COMMON_CONCERNS.find(c => c.value === selectedConcern)?.label || 'None'}</span>
+                          )}
+                        </div>
+                        {formErrors.concern && (
+                          <div className="invalid-feedback">{formErrors.concern}</div>
+                        )}
+                      </div>
+                      
+                      <div className="col-12">
+                        <label className="form-label fw-semibold">
+                          <i className="bi bi-journal-text me-1"></i>
+                          Additional Notes
+                          <small className="text-muted ms-1">(Optional)</small>
+                        </label>
+                        <textarea
+                          className="form-control"
+                          rows="2"
+                          value={appointment.notes}
+                          onChange={(e) => handleInputChange('notes', e.target.value)}
+                          placeholder="Any additional notes, special requests, or medication allergies..."
+                        />
+                      </div>
+                    </>
+                  )}
                   
                   {/* Availability Status */}
                   {/* Show slot availability or conflict error */}
@@ -779,64 +828,6 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
                     </div>
                   </div>
                   
-                  <div className="col-12">
-                    <label className="form-label fw-semibold">
-                      <i className="bi bi-chat-text me-1"></i>
-                      What is your main concern? <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      className={formErrors.concern ? 'form-select is-invalid' : 'form-select'}
-                      value={selectedConcern}
-                      onChange={e => {
-                        setSelectedConcern(e.target.value);
-                        if (e.target.value !== 'Other') setOtherConcern('');
-                      }}
-                      required
-                    >
-                      <option value="">Select a concern</option>
-                      {COMMON_CONCERNS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                    {selectedConcern === 'Other' && (
-                      <textarea
-                        className={formErrors.concern ? 'form-control is-invalid' : 'form-control'}
-                        rows="3"
-                        value={otherConcern}
-                        onChange={e => setOtherConcern(e.target.value)}
-                        onBlur={e => validateField('concern', e.target.value)}
-                        placeholder="Please describe your symptoms or reason for visit in detail..."
-                        required
-                      />
-                    )}
-                    <div className="form-text">
-                      {selectedConcern === 'Other' ? (
-                        <span className={otherConcern.length < 10 ? 'text-muted' : 'text-success'}>
-                          {otherConcern.length} characters (minimum 10 required)
-                        </span>
-                      ) : (
-                        <span className="text-success">Selected: {COMMON_CONCERNS.find(c => c.value === selectedConcern)?.label || 'None'}</span>
-                      )}
-                    </div>
-                    {formErrors.concern && (
-                      <div className="invalid-feedback">{formErrors.concern}</div>
-                    )}
-                  </div>
-                  
-                  <div className="col-12">
-                    <label className="form-label fw-semibold">
-                      <i className="bi bi-journal-text me-1"></i>
-                      Additional Notes
-                      <small className="text-muted ms-1">(Optional)</small>
-                    </label>
-                    <textarea
-                      className="form-control"
-                      rows="2"
-                      value={appointment.notes}
-                      onChange={(e) => handleInputChange('notes', e.target.value)}
-                      placeholder="Any additional notes, special requests, or medication allergies..."
-                    />
-                  </div>
                 </div>
 
                 {error && (
@@ -871,12 +862,12 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
                 {loading ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    Scheduling...
+                    {isReschedule ? 'Rescheduling...' : 'Scheduling...'}
                   </>
                 ) : (
                   <>
                     <i className="bi bi-check-circle me-1"></i>
-                    Schedule Appointment
+                    {isReschedule ? 'Reschedule Appointment' : 'Schedule Appointment'}
                   </>
                 )}
               </button>
@@ -884,13 +875,15 @@ const AppointmentForm = ({ initialDate = '', initialTime = '', initialDoctorId =
           </div>
         </div>
       </div>
-      {/* Payment Gateway Modal */}
-      <PaymentGatewayModal
-        show={showPaymentModal}
-        onConfirm={handlePaymentConfirm}
-        onCancel={handlePaymentCancel}
-        paymentMethod={appointment.paymentMethod}
-      />
+      {/* Payment Gateway Modal - only show if not rescheduling */}
+      {!isReschedule && (
+        <PaymentGatewayModal
+          show={showPaymentModal}
+          onConfirm={handlePaymentConfirm}
+          onCancel={handlePaymentCancel}
+          paymentMethod={appointment.paymentMethod}
+        />
+      )}
     </div>
   );
 };

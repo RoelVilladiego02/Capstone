@@ -13,11 +13,14 @@ const PaymentGatewayModal = ({ show, onConfirm, onCancel, paymentMethod }) => {
           <div className="modal-body text-center">
             <i className="bi bi-credit-card fs-1 text-primary mb-3"></i>
             <p className="mb-2">You selected <strong>{paymentMethod?.replace('_', ' ').toUpperCase()}</strong> as your payment method.</p>
-            <p className="mb-0">Proceed to confirm your payment?</p>
+            <p className="mb-0">Would you like to pay now to secure your appointment slot?</p>
+            <small className="text-muted d-block mt-2">
+              Note: Unpaid appointments may be taken by other patients who pay first.
+            </small>
           </div>
           <div className="modal-footer justify-content-center">
-            <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-            <button className="btn btn-primary" onClick={onConfirm}>Confirm Payment</button>
+            <button className="btn btn-secondary" onClick={onCancel}>Pay Later</button>
+            <button className="btn btn-primary" onClick={onConfirm}>Pay Now</button>
           </div>
         </div>
       </div>
@@ -25,4 +28,4 @@ const PaymentGatewayModal = ({ show, onConfirm, onCancel, paymentMethod }) => {
   );
 };
 
-export default PaymentGatewayModal; 
+export default PaymentGatewayModal;

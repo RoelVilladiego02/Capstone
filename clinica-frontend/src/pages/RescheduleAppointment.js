@@ -8,52 +8,78 @@ function useQuery() {
 }
 
 const RescheduleAppointment = ({ isOpen = true, onClose, appointmentId: propAppointmentId }) => {
-  // Use propAppointmentId if provided, else fallback to query string (for compatibility)
   const query = useQuery();
   const appointmentId = propAppointmentId || query.get('appointmentId');
   const [appointment, setAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (appointmentId) {
-      appointmentService.getAppointment(appointmentId)
-        .then(data => {
-          setAppointment(data);
+    const fetchAppointment = async () => {
+      if (!appointmentId) {
+        setError('No appointment ID provided');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('Fetching appointment:', appointmentId);
+        const data = await appointmentService.getAppointment(appointmentId);
+        console.log('Fetched appointment:', data);
+        
+        if (data.status === 'Cancelled') {
+          setError('This appointment has been cancelled and cannot be rescheduled.');
           setLoading(false);
-        })
-        .catch(() => {
-          setLoading(false);
-        });
-    }
+          return;
+        }
+
+        setAppointment(data);
+      } catch (err) {
+        console.error('Error fetching appointment:', err);
+        setError('Failed to load appointment details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAppointment();
   }, [appointmentId]);
+
+  const handleRescheduleSuccess = async (updatedAppointment) => {
+    console.log('Rescheduling successful:', updatedAppointment);
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/appointments');
+    }
+  };
 
   if (!isOpen) return null;
   if (loading) return <div>Loading appointment details...</div>;
-  if (!appointment) return <div className="alert alert-danger">Appointment not found or already cancelled.</div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
+  if (!appointment) return <div className="alert alert-danger">Appointment not found.</div>;
 
-  // Pre-fill form with original details except for date/time
   return (
     <AppointmentForm
       initialDate={''}
       initialTime={''}
       isOpen={true}
-      onSuccess={() => {
-        if (onClose) onClose();
-        navigate('/appointments');
-      }}
+      isReschedule={true}
+      appointmentId={appointment.id}
+      onSuccess={handleRescheduleSuccess}
       onCancel={() => {
         if (onClose) onClose();
-        navigate('/appointments');
+        else navigate('/appointments');
       }}
-      // Pre-fill other fields
-      initialDoctorId={appointment.doctor_id || ''}
+      initialDoctorId={appointment.doctor_id}
       initialType={appointment.type || 'Walk-in'}
       initialConcern={appointment.concern || ''}
       initialNotes={appointment.notes || ''}
       initialPaymentMethod={appointment.payment_method || 'credit_card'}
+      hidePaymentFields={true}
     />
   );
 };
 
-export default RescheduleAppointment; 
+export default RescheduleAppointment;
