@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import { api } from '../../services/api';
 
 ChartJS.register(
   CategoryScale,
@@ -56,38 +57,29 @@ const DoctorDashboard = () => {
     
     setLoading(true);
     try {
-      // Fetch doctor stats
-      const statsResponse = await fetch(`/api/analytics/doctors/${doctorId}/summary`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const statsData = await statsResponse.json();
+      // Fetch all data in parallel
+      const [statsData, appointmentsData, teleconsultsData] = await Promise.all([
+        api.get(`/analytics/doctors/${doctorId}/summary`),
+        api.get(`/doctors/${doctorId}/todays-appointments`),
+        api.get(`/doctors/${doctorId}/teleconsultations`)
+      ]);
+
       setStats({
-        todayPatients: statsData.today_patients,
-        pendingRecords: statsData.pending_records,
-        pendingDiagnostics: statsData.pending_diagnostics,
-        pendingPrescriptions: statsData.pending_prescriptions
+        todayPatients: statsData.today_patients || 0,
+        pendingRecords: statsData.pending_records || 0,
+        pendingDiagnostics: statsData.pending_diagnostics || 0,
+        pendingPrescriptions: statsData.pending_prescriptions || 0
       });
 
-      // Fetch today's appointments
-      const appointmentsResponse = await fetch(`/api/doctors/${doctorId}/todays-appointments`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const appointmentsData = await appointmentsResponse.json();
-      setTodaysAppointments(appointmentsData);
-
-      // Fetch upcoming teleconsultations
-      const teleconsultsResponse = await fetch(`/api/doctors/${doctorId}/teleconsultations`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const teleconsultsData = await teleconsultsResponse.json();
-      setUpcomingTeleconsults(teleconsultsData);
+      setTodaysAppointments(appointmentsData || []);
+      setUpcomingTeleconsults(teleconsultsData || []);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  }, [token, doctorId]);
+  }, [doctorId]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -100,49 +92,29 @@ const DoctorDashboard = () => {
 
   const handleEndSession = async () => {
     try {
-      // Create or update medical record with session data
       const sessionData = {
         patient_id: selectedPatient.patient_id,
         doctor_id: doctorId,
         visit_date: new Date().toISOString().split('T')[0],
-        diagnosis: 'Session completed', // This would be filled by the doctor
-        treatment: 'Treatment plan', // This would be filled by the doctor
-        notes: 'Session notes',
+        diagnosis: sessionNotes,
         vital_signs: vitalSigns,
-        session_notes: sessionNotes,
       };
 
-      const response = await fetch('/api/medical-records/session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(sessionData)
+      await api.post('/medical-records/session', sessionData);
+      
+      // Refresh dashboard data
+      await fetchDashboardData();
+      
+      setShowSessionModal(false);
+      setSelectedPatient(null);
+      setSessionNotes('');
+      setVitalSigns({
+        temperature: '',
+        bloodPressure: '',
+        heartRate: '',
+        respiratoryRate: '',
+        oxygenSaturation: ''
       });
-
-      if (response.ok) {
-        console.log('Session ended and saved:', {
-          patient: selectedPatient,
-          notes: sessionNotes,
-          vitals: vitalSigns,
-          endTime: new Date().toISOString()
-        });
-        
-        // Refresh dashboard data
-        await fetchDashboardData();
-        
-        setShowSessionModal(false);
-        setSelectedPatient(null);
-        setSessionNotes('');
-        setVitalSigns({
-          temperature: '',
-          bloodPressure: '',
-          heartRate: '',
-          respiratoryRate: '',
-          oxygenSaturation: ''
-        });
-      }
     } catch (error) {
       console.error('Error saving session:', error);
     }

@@ -1,178 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { appointmentService } from '../services/appointmentService';
 
 const DoctorSchedule = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('Scheduled');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [statusCounts, setStatusCounts] = useState({
+    Scheduled: 0,
+    Completed: 0,
+    Cancelled: 0,
+    'No-Show': 0
+  });
 
-  // Mock appointments data - Added date field to all appointments
-  const appointments = [
-    {
-      id: 1,
-      date: selectedDate,
-      time: "09:00 AM",
-      patientName: "John Doe",
-      age: 45,
-      type: "Walk-in",
-      concern: "Hypertension check",
-      status: "Scheduled",
-      lastVisit: "2024-01-15"
-    },
-    {
-      id: 2,
-      date: selectedDate,
-      time: "09:30 AM",
-      patientName: "Maria Garcia",
-      age: 35,
-      type: "Online",
-      concern: "Persistent headache",
-      status: "Completed",
-      lastVisit: null
-    },
-    {
-      id: 3,
-      date: selectedDate,
-      time: "10:00 AM",
-      patientName: "Robert Wilson",
-      age: 52,
-      type: "Teleconsult",
-      concern: "Diabetes monitoring",
-      status: "Scheduled",
-      lastVisit: "2024-02-01"
-    },
-    {
-      id: 4,
-      date: selectedDate,
-      time: "10:30 AM",
-      patientName: "Emily Brown",
-      age: 28,
-      type: "Online",
-      concern: "Medication adjustment",
-      status: "No-Show",
-      lastVisit: "2024-01-20"
-    },
-    {
-      id: 5,
-      date: selectedDate,
-      time: "11:00 AM",
-      patientName: "James Smith",
-      age: 60,
-      type: "Online",
-      concern: "Chest pain",
-      status: "Completed",
-      lastVisit: "2024-02-10"
-    },
-    {
-      id: 6,
-      date: selectedDate,
-      time: "11:30 AM",
-      patientName: "Sarah Johnson",
-      age: 33,
-      type: "Walk-in",
-      concern: "Pregnancy check",
-      status: "Scheduled",
-      lastVisit: "2024-02-05"
-    },
-    {
-      id: 7,
-      date: selectedDate,
-      time: "02:00 PM",
-      patientName: "Michael Davis",
-      age: 41,
-      type: "Teleconsult",
-      concern: "Back pain",
-      status: "Cancelled",
-      lastVisit: null
-    },
-    {
-      id: 8,
-      date: selectedDate,
-      time: "02:30 PM",
-      patientName: "Lisa Anderson",
-      age: 39,
-      type: "teleconsult",
-      concern: "Thyroid check",
-      status: "Scheduled",
-      lastVisit: "2024-01-30"
-    },
-    {
-      id: 9,
-      date: selectedDate,
-      time: "03:00 PM",
-      patientName: "David Miller",
-      age: 55,
-      type: "Online",
-      concern: "Cholesterol review",
-      status: "Scheduled",
-      lastVisit: "2024-02-08"
-    },
-    {
-      id: 10,
-      date: selectedDate,
-      time: "03:30 PM",
-      patientName: "Jennifer White",
-      age: 31,
-      type: "Online",
-      concern: "Anxiety management",
-      status: "Scheduled",
-      lastVisit: "2024-02-01"
-    },
-    {
-      id: 11,
-      date: selectedDate,
-      time: "04:00 PM",
-      patientName: "Thomas Clark",
-      age: 47,
-      type: "Walk-in",
-      concern: "Joint pain",
-      status: "Scheduled",
-      lastVisit: null
-    },
-    {
-      id: 12,
-      date: selectedDate,
-      time: "04:30 PM",
-      patientName: "Patricia Lee",
-      age: 62,
-      type: "Teleconsult",
-      concern: "Blood pressure check",
-      status: "Scheduled",
-      lastVisit: "2024-02-07"
+  // Fetch appointments data
+  const fetchAppointments = useCallback(async () => {
+    if (!currentUser?.id) return;
+    
+    setLoading(true);
+    try {
+      const appointments = await appointmentService.getDoctorAppointments(currentUser.id, {
+        date: selectedDate
+      });
+      
+      setAppointmentsList(appointments);
+
+      // Update status counts
+      const counts = {
+        Scheduled: 0,
+        Completed: 0,
+        Cancelled: 0,
+        'No-Show': 0
+      };
+      
+      appointments.forEach(apt => {
+        if (counts.hasOwnProperty(apt.status)) {
+          counts[apt.status]++;
+        }
+      });
+      
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, [currentUser?.id, selectedDate]);
 
-  // Add currentUser to page title or filter
-  React.useEffect(() => {
-    document.title = `Schedule - Dr. ${currentUser?.fullName || 'Unknown'}`;
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
+
+  // Add currentUser to page title
+  useEffect(() => {
+    document.title = `Schedule - Dr. ${currentUser?.name || 'Unknown'}`;
   }, [currentUser]);
 
-  // Fix appointments useEffect
-  const [appointmentsList, setAppointmentsList] = useState(appointments);
-
-  React.useEffect(() => {
-    setAppointmentsList(prev => 
-      prev.map(apt => ({
-        ...apt,
-        date: selectedDate
-      }))
-    );
-  }, [selectedDate]);
-
-  // Update the filter to use appointmentsList instead of appointments
+  // Filter appointments
   const filteredAppointments = appointmentsList.filter(apt => {
-    const matchesSearch = apt.patientName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = apt.patient?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = activeTab === 'all' || apt.status === activeTab;
     return matchesSearch && matchesStatus;
   });
 
-  // Update status counts to use appointmentsList
-  const statusCounts = {
-    Scheduled: appointmentsList.filter(apt => apt.status === 'Scheduled').length,
-    Completed: appointmentsList.filter(apt => apt.status === 'Completed').length,
-    Cancelled: appointmentsList.filter(apt => apt.status === 'Cancelled').length,
-    'No-Show': appointmentsList.filter(apt => apt.status === 'No-Show').length
+  // Handle appointment completion
+  const handleCompleteAppointment = async (appointmentId) => {
+    try {
+      await appointmentService.updateAppointment(appointmentId, {
+        status: 'Completed'
+      });
+      // Refresh appointments after update
+      fetchAppointments();
+    } catch (error) {
+      console.error('Error completing appointment:', error);
+    }
   };
 
   // Get status badge color
@@ -195,6 +99,18 @@ const DoctorSchedule = () => {
       default: return 'bg-secondary';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -300,17 +216,14 @@ const DoctorSchedule = () => {
                       <td>
                         <div className="d-flex align-items-center">
                           <div className="avatar avatar-circle me-2 bg-primary-subtle text-primary">
-                            {appointment.patientName.substring(0, 2)}
+                            {appointment.patient?.charAt(0)}
                           </div>
                           <div>
-                            <p className="mb-0 fw-medium">{appointment.patientName}</p>
-                            {appointment.lastVisit && (
-                              <small className="text-muted">Last visit: {new Date(appointment.lastVisit).toLocaleDateString()}</small>
-                            )}
+                            <p className="mb-0 fw-medium">{appointment.patient}</p>
                           </div>
                         </div>
                       </td>
-                      <td>{appointment.age}</td>
+                      <td>{appointment.patient_id}</td>
                       <td>
                         <span className={`badge ${getTypeBadgeColor(appointment.type)}`}>
                           {appointment.type}
@@ -331,6 +244,7 @@ const DoctorSchedule = () => {
                             <button 
                               className="btn btn-sm" 
                               style={{ backgroundColor: '#E31937', color: 'white' }}
+                              onClick={() => handleCompleteAppointment(appointment.id)}
                             >
                               <i className="bi bi-check-circle me-1"></i>Complete
                             </button>
