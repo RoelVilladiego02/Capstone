@@ -22,6 +22,23 @@ class MedicalRecordController extends Controller
         $userRoles = $user->roles->pluck('name')->toArray();
         $authorizedRoles = ['Admin', 'Medical Staff'];
 
+        // Patients can view their own records
+        if (in_array('Patient', $userRoles)) {
+            if ($action !== 'view') {
+                response()->json([
+                    'message' => 'Patients can only view medical records'
+                ], 403)->throwResponse();
+            }
+
+            // If a specific record is being checked
+            if ($record && $record->patient_id !== $user->patient->id) {
+                response()->json([
+                    'message' => 'You can only view your own medical records'
+                ], 403)->throwResponse();
+            }
+            return;
+        }
+
         // Doctors can access their own patients' records
         if (in_array('Doctor', $userRoles)) {
             if ($action === 'view') {
@@ -60,13 +77,16 @@ class MedicalRecordController extends Controller
         $user = auth()->user();
         $userRoles = $user->roles->pluck('name')->toArray();
 
+        // If user is a patient, only show their own records
+        if (in_array('Patient', $userRoles)) {
+            $query->where('patient_id', $user->patient->id);
+        }
         // If user is a doctor, only show their patients' records
-        if (in_array('Doctor', $userRoles)) {
+        else if (in_array('Doctor', $userRoles)) {
             $query->where('doctor_id', $user->id);
         }
-
-        // Filter by patient_id if provided
-        if ($request->has('patient_id')) {
+        // For other roles, filter by patient_id if provided
+        else if ($request->has('patient_id')) {
             $query->where('patient_id', $request->patient_id);
         }
 
