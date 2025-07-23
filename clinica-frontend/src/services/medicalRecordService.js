@@ -4,7 +4,18 @@ export const medicalRecordService = {
   // Get all medical records
   getAll: async (params = {}) => {
     const queryString = new URLSearchParams(params).toString();
-    return await api.get(`/medical-records${queryString ? `?${queryString}` : ''}`);
+    const response = await api.get(`/medical-records${queryString ? `?${queryString}` : ''}`);
+    
+    // Transform the response to include proper patient name
+    if (Array.isArray(response)) {
+      return response.map(record => ({
+        ...record,
+        patient_name: record.patient?.user?.name || 
+                     `${record.patient?.first_name || ''} ${record.patient?.last_name || ''}`.trim() ||
+                     'Unknown'
+      }));
+    }
+    return response;
   },
 
   // Get medical record by ID

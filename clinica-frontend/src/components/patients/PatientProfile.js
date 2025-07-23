@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { patientService } from '../../services/patientService';
+import { extractPatientId } from '../../utils/patientUtils';
 import MedicalRecord from '../medical-records/MedicalRecordView';
 
-const PatientProfile = ({ patientId }) => {
+const PatientProfile = () => {
+  const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [patient, setPatient] = useState(null);
@@ -10,30 +13,21 @@ const PatientProfile = ({ patientId }) => {
   useEffect(() => {
     const fetchPatientData = async () => {
       try {
-        console.log('Fetching patient data for ID:', patientId);
         setLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const patientData = await patientService.getPatient(id);
         
-        // Mock patient data
-        const patientData = {
-          id: '12345',
-          fullName: 'John Doe',
-          age: 45,
-          gender: 'Male',
-          bloodType: 'O+',
-          contactNumber: '+1234567890',
-          email: 'john.doe@email.com',
-          address: '123 Medical Plaza, Healthcare City',
-          emergencyContact: {
-            name: 'Jane Doe',
-            relation: 'Spouse',
-            phone: '+0987654321'
-          }
+        const transformedData = {
+          id: extractPatientId(patientData),
+          fullName: patientData.user?.name || 'N/A',
+          dob: patientData.dob,
+          gender: patientData.gender,
+          contactNumber: patientData.phone,
+          email: patientData.user?.email,
+          address: patientData.address,
+          emergencyContact: patientData.emergency_contact || 'Not provided'
         };
         
-        console.log('Patient data retrieved successfully');
-        setPatient(patientData);
+        setPatient(transformedData);
       } catch (err) {
         console.error('Error fetching patient data:', err);
         setError('Failed to load patient information');
@@ -42,8 +36,15 @@ const PatientProfile = ({ patientId }) => {
       }
     };
 
-    fetchPatientData();
-  }, [patientId]);
+    if (id) {
+      fetchPatientData();
+    }
+  }, [id]);
+
+  const calculateAge = (dob) => {
+    if (!dob) return 'N/A';
+    return Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000));
+  };
 
   if (loading) {
     return (
@@ -89,9 +90,8 @@ const PatientProfile = ({ patientId }) => {
               <hr />
 
               <div className="patient-info">
-                <p><strong>Age:</strong> {patient.age}</p>
+                <p><strong>Age:</strong> {calculateAge(patient.dob)}</p>
                 <p><strong>Gender:</strong> {patient.gender}</p>
-                <p><strong>Blood Type:</strong> {patient.bloodType}</p>
                 <p><strong>Contact:</strong> {patient.contactNumber}</p>
                 <p><strong>Email:</strong> {patient.email}</p>
                 <p><strong>Address:</strong> {patient.address}</p>
@@ -101,9 +101,9 @@ const PatientProfile = ({ patientId }) => {
 
               <div className="emergency-contact">
                 <h6 className="fw-bold">Emergency Contact</h6>
-                <p className="mb-1">{patient.emergencyContact.name}</p>
-                <p className="mb-1">{patient.emergencyContact.relation}</p>
-                <p>{patient.emergencyContact.phone}</p>
+                <p className="mb-1">{patient.emergencyContact.name || 'N/A'}</p>
+                <p className="mb-1">{patient.emergencyContact.relation || 'N/A'}</p>
+                <p>{patient.emergencyContact.phone || 'N/A'}</p>
               </div>
 
               <div className="d-grid gap-2 mt-4">
@@ -127,3 +127,4 @@ const PatientProfile = ({ patientId }) => {
 };
 
 export default PatientProfile;
+

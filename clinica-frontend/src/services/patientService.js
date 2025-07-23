@@ -22,6 +22,11 @@ export const patientService = {
       const response = await api.get('/patients/me');
       console.log('getMyProfile API response:', response);
       
+      // If we got an error response
+      if (response.error) {
+        throw new Error(response.message || response.error);
+      }
+      
       // Validate the response structure
       if (!response) {
         throw new Error('No response received from /patients/me');

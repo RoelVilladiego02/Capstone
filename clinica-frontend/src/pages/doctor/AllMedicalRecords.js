@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { medicalRecordService } from '../../services/medicalRecordService';
 
 const AllMedicalRecords = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -7,6 +8,7 @@ const AllMedicalRecords = () => {
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [medicalRecords, setMedicalRecords] = useState([]);
   const [newRecord, setNewRecord] = useState({
     patientName: '',
@@ -40,39 +42,63 @@ const AllMedicalRecords = () => {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/medical-records', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await medicalRecordService.getAll();
+      console.log('Raw medical records data:', data); // For debugging
       
       // Transform the data to match the expected format
-      const transformedRecords = data.map(record => ({
-        id: record.id,
-        patientName: record.patient?.user?.name || 'Unknown',
-        patientId: record.patient_id,
-        date: record.visit_date,
-        type: record.type || 'Consultation',
-        diagnosis: record.diagnosis,
-        vitals: record.vital_signs || {
-          temperature: '',
-          bloodPressure: '',
-          heartRate: '',
-          respiratoryRate: '',
-          oxygenSaturation: ''
-        },
-        symptoms: record.symptoms || [],
-        treatment: record.treatment,
-        notes: record.notes,
-        status: record.status || 'Active'
-      }));
+      const transformedRecords = data.map(record => {
+        // Parse vital signs if it's a string
+        let vitalSigns = record.vital_signs;
+        if (typeof vitalSigns === 'string') {
+          try {
+            vitalSigns = JSON.parse(vitalSigns);
+          } catch (e) {
+            console.warn('Failed to parse vital signs:', e);
+            vitalSigns = {};
+          }
+        }
+
+        // Get patient name from the patient relation
+        let patientName = 'Unknown';
+        if (record.patient) {
+          if (record.patient.user && record.patient.user.name) {
+            patientName = record.patient.user.name;
+          } else if (record.patient.first_name || record.patient.last_name) {
+            patientName = `${record.patient.first_name || ''} ${record.patient.last_name || ''}`.trim();
+          }
+        }
+
+        return {
+          id: record.id,
+          patientName: patientName,
+          patientId: record.patient_id,
+          date: record.visit_date,
+          type: record.type || 'Consultation',
+          diagnosis: record.diagnosis,
+          vitals: vitalSigns || {
+            temperature: '',
+            bloodPressure: '',
+            heartRate: '',
+            respiratoryRate: '',
+            oxygenSaturation: ''
+          },
+          symptoms: record.symptoms || [],
+          treatment: record.treatment,
+          notes: record.notes,
+          status: record.status || 'Active'
+        };
+      });
       
       setMedicalRecords(transformedRecords);
+      setError(null); // Clear any previous errors
     } catch (error) {
       console.error('Error fetching medical records:', error);
+      setError(error.message || 'Failed to fetch medical records');
+      setMedicalRecords([]); // Clear records on error
     } finally {
       setLoading(false);
     }
-  }, [token, doctorId]);
+  }, [doctorId]);
 
   useEffect(() => {
     fetchMedicalRecords();
@@ -187,6 +213,17 @@ const AllMedicalRecords = () => {
 
   return (
     <div className="container-fluid py-4">
+      {error && (
+        <div className="alert alert-danger alert-dismissible fade show" role="alert">
+          {error}
+          <button 
+            type="button" 
+            className="btn-close" 
+            onClick={() => setError(null)}
+            aria-label="Close"
+          ></button>
+        </div>
+      )}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 className="mb-1">Patient Medical Records</h4>

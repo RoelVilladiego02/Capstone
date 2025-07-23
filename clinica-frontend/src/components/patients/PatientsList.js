@@ -1,290 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { patientService } from '../../services/patientService';
+import { normalizePatient } from '../../utils/patientUtils';
 
 const PatientsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState({ field: 'lastVisit', direction: 'desc' });
+  const [loading, setLoading] = useState(true);
+  const [patients, setPatients] = useState([]);
   const itemsPerPage = 10;
 
-  // Mock data - replace with API call
-  const patients = [
-    { 
-      id: 1, 
-      name: 'John Doe', 
-      age: 45, 
-      gender: 'Male',
-      contactNumber: '+1234567890',
-      lastVisit: '2024-02-15',
-      nextAppointment: '2024-03-01',
-      status: 'Active',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['Hypertension', 'Diabetes'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 2, 
-      name: 'Jane Smith', 
-      age: 32, 
-      gender: 'Female',
-      contactNumber: '+1234567891',
-      lastVisit: '2024-02-14',
-      nextAppointment: '2024-02-28',
-      status: 'Active',
-      doctor: 'Dr. Johnson',
-      medicalConditions: ['Asthma'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 3, 
-      name: 'Maria Garcia', 
-      age: 28, 
-      gender: 'Female',
-      contactNumber: '+1234567892',
-      lastVisit: '2024-02-10',
-      nextAppointment: '2024-03-05',
-      status: 'Active',
-      doctor: 'Dr. Williams',
-      medicalConditions: ['Allergies'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 4, 
-      name: 'Robert Wilson', 
-      age: 52, 
-      gender: 'Male',
-      contactNumber: '+1234567893',
-      lastVisit: '2024-01-20',
-      nextAppointment: null,
-      status: 'Inactive',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['Arthritis'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 5, 
-      name: 'Sarah Johnson', 
-      age: 41, 
-      gender: 'Female',
-      contactNumber: '+1234567894',
-      lastVisit: '2024-02-13',
-      nextAppointment: '2024-03-10',
-      status: 'Active',
-      doctor: 'Dr. Brown',
-      medicalConditions: ['Migraine'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 6, 
-      name: 'Michael Brown', 
-      age: 63, 
-      gender: 'Male',
-      contactNumber: '+1234567895',
-      lastVisit: '2024-02-01',
-      nextAppointment: '2024-02-25',
-      status: 'Critical',
-      doctor: 'Dr. Johnson',
-      medicalConditions: ['Heart Disease', 'Diabetes'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 7, 
-      name: 'Emily Davis', 
-      age: 29, 
-      gender: 'Female',
-      contactNumber: '+1234567896',
-      lastVisit: '2024-02-12',
-      nextAppointment: '2024-03-15',
-      status: 'Active',
-      doctor: 'Dr. Williams',
-      medicalConditions: ['Anxiety'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 8, 
-      name: 'David Martinez', 
-      age: 47, 
-      gender: 'Male',
-      contactNumber: '+1234567897',
-      lastVisit: '2024-01-30',
-      nextAppointment: '2024-02-27',
-      status: 'Active',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['Hypertension'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 9, 
-      name: 'Lisa Anderson', 
-      age: 35, 
-      gender: 'Female',
-      contactNumber: '+1234567898',
-      lastVisit: '2024-02-08',
-      nextAppointment: '2024-03-08',
-      status: 'Active',
-      doctor: 'Dr. Brown',
-      medicalConditions: ['Depression'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 10, 
-      name: 'James Wilson', 
-      age: 58, 
-      gender: 'Male',
-      contactNumber: '+1234567899',
-      lastVisit: '2024-01-25',
-      nextAppointment: null,
-      status: 'Inactive',
-      doctor: 'Dr. Johnson',
-      medicalConditions: ['COPD'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 11, 
-      name: 'Patricia Moore', 
-      age: 39, 
-      gender: 'Female',
-      contactNumber: '+1234567900',
-      lastVisit: '2024-02-11',
-      nextAppointment: '2024-03-12',
-      status: 'Active',
-      doctor: 'Dr. Williams',
-      medicalConditions: ['Thyroid'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 12, 
-      name: 'Thomas Taylor', 
-      age: 51, 
-      gender: 'Male',
-      contactNumber: '+1234567901',
-      lastVisit: '2024-02-05',
-      nextAppointment: '2024-03-05',
-      status: 'Active',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['High Cholesterol'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 13, 
-      name: 'Jessica Lee', 
-      age: 31, 
-      gender: 'Female',
-      contactNumber: '+1234567902',
-      lastVisit: '2024-02-14',
-      nextAppointment: '2024-03-14',
-      status: 'Active',
-      doctor: 'Dr. Brown',
-      medicalConditions: ['Endometriosis'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 14, 
-      name: 'Christopher White', 
-      age: 44, 
-      gender: 'Male',
-      contactNumber: '+1234567903',
-      lastVisit: '2024-01-28',
-      nextAppointment: '2024-02-28',
-      status: 'Critical',
-      doctor: 'Dr. Johnson',
-      medicalConditions: ['Kidney Disease'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 15, 
-      name: 'Amanda Harris', 
-      age: 33, 
-      gender: 'Female',
-      contactNumber: '+1234567904',
-      lastVisit: '2024-02-09',
-      nextAppointment: '2024-03-09',
-      status: 'Active',
-      doctor: 'Dr. Williams',
-      medicalConditions: ['Gastritis'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 16, 
-      name: 'Kevin Clark', 
-      age: 49, 
-      gender: 'Male',
-      contactNumber: '+1234567905',
-      lastVisit: '2024-02-07',
-      nextAppointment: '2024-03-07',
-      status: 'Active',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['Back Pain'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 17, 
-      name: 'Michelle Rodriguez', 
-      age: 36, 
-      gender: 'Female',
-      contactNumber: '+1234567906',
-      lastVisit: '2024-02-13',
-      nextAppointment: '2024-03-13',
-      status: 'Active',
-      doctor: 'Dr. Brown',
-      medicalConditions: ['Fibromyalgia'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 18, 
-      name: 'Daniel Lewis', 
-      age: 55, 
-      gender: 'Male',
-      contactNumber: '+1234567907',
-      lastVisit: '2024-01-15',
-      nextAppointment: null,
-      status: 'Inactive',
-      doctor: 'Dr. Johnson',
-      medicalConditions: ['Gout'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 19, 
-      name: 'Elizabeth Martin', 
-      age: 42, 
-      gender: 'Female',
-      contactNumber: '+1234567908',
-      lastVisit: '2024-02-06',
-      nextAppointment: '2024-03-06',
-      status: 'Active',
-      doctor: 'Dr. Williams',
-      medicalConditions: ['Osteoporosis'],
-      image: 'https://via.placeholder.com/40'
-    },
-    { 
-      id: 20, 
-      name: 'Richard Thompson', 
-      age: 61, 
-      gender: 'Male',
-      contactNumber: '+1234567909',
-      lastVisit: '2024-02-04',
-      nextAppointment: '2024-03-04',
-      status: 'Active',
-      doctor: 'Dr. Smith',
-      medicalConditions: ['Glaucoma'],
-      image: 'https://via.placeholder.com/40'
+  // Fetch patients data
+  const fetchPatients = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await patientService.getPatients();
+      console.log('Patients data from API:', data);
+      // Normalize all patient data
+      const normalizedPatients = data.map(patient => normalizePatient(patient));
+      console.log('Normalized patients:', normalizedPatients);
+      setPatients(normalizedPatients);
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, []);
+
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
 
   // Filter and sort patients
   const filteredPatients = patients.filter(patient => {
     const matchesSearch = 
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.contactNumber.includes(searchTerm) ||
-      patient.doctor.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = filterStatus === 'all' || patient.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
-  }).sort((a, b) => {
-    const direction = sortBy.direction === 'asc' ? 1 : -1;
-    return a[sortBy.field] > b[sortBy.field] ? direction : -direction;
+      patient.phone?.includes(searchTerm);
+    return matchesSearch;
   });
 
   // Pagination
@@ -301,14 +55,17 @@ const PatientsList = () => {
     }));
   };
 
-  const getStatusBadgeClass = (status) => {
-    switch(status) {
-      case 'Active': return 'bg-success';
-      case 'Inactive': return 'bg-secondary';
-      case 'Critical': return 'bg-danger';
-      default: return 'bg-primary';
-    }
-  };
+  if (loading) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -371,10 +128,9 @@ const PatientsList = () => {
                     )}
                   </th>
                   <th>Contact</th>
-                  <th>Last Visit</th>
-                  <th>Next Appointment</th>
-                  <th>Doctor</th>
-                  <th>Status</th>
+                  <th>DOB</th>
+                  <th>Gender</th>
+                  <th>Address</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -383,72 +139,28 @@ const PatientsList = () => {
                   <tr key={patient.id}>
                     <td>
                       <div className="d-flex align-items-center">
-                        <img 
-                          src={patient.image} 
-                          alt={patient.name}
-                          className="rounded-circle me-2"
-                          width="40"
-                          height="40"
-                        />
+                        <div className="avatar-circle me-2">
+                          {patient.name.charAt(0)}
+                        </div>
                         <div>
                           <div className="fw-medium">{patient.name}</div>
                           <small className="text-muted">
-                            {patient.age} yrs • {patient.gender}
+                            ID: {patient.id}
                           </small>
                         </div>
                       </div>
                     </td>
-                    <td>{patient.contactNumber}</td>
+                    <td>{patient.phone}</td>
+                    <td>{patient.dob ? new Date(patient.dob).toLocaleDateString() : 'N/A'}</td>
+                    <td>{patient.gender}</td>
+                    <td>{patient.address}</td>
                     <td>
-                      {new Date(patient.lastVisit).toLocaleDateString()}
-                    </td>
-                    <td>
-                      {patient.nextAppointment ? (
-                        new Date(patient.nextAppointment).toLocaleDateString()
-                      ) : (
-                        <span className="text-muted">No appointment</span>
-                      )}
-                    </td>
-                    <td>{patient.doctor}</td>
-                    <td>
-                      <span className={`badge ${getStatusBadgeClass(patient.status)}`}>
-                        {patient.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <Link 
-                          to={`/patients/${patient.id}`}
-                          className="btn btn-sm btn-outline-primary"
-                        >
-                          View Profile
-                        </Link>
-                        <button 
-                          type="button" 
-                          className="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split"
-                          data-bs-toggle="dropdown"
-                        >
-                          <span className="visually-hidden">Toggle Dropdown</span>
-                        </button>
-                        <ul className="dropdown-menu">
-                          <li>
-                            <button className="dropdown-item">
-                              <i className="bi bi-calendar-plus me-2"></i>Schedule Appointment
-                            </button>
-                          </li>
-                          <li>
-                            <button className="dropdown-item">
-                              <i className="bi bi-file-earmark-text me-2"></i>View Records
-                            </button>
-                          </li>
-                          <li><hr className="dropdown-divider" /></li>
-                          <li>
-                            <button className="dropdown-item text-danger">
-                              <i className="bi bi-trash me-2"></i>Delete
-                            </button>
-                          </li>
-                        </ul>
-                      </div>
+                      <Link 
+                        to={`${patient.id}`}
+                        className="btn btn-sm btn-outline-primary"
+                      >
+                        View Profile
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -505,3 +217,4 @@ const PatientsList = () => {
 };
 
 export default PatientsList;
+

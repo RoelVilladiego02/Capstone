@@ -1,227 +1,171 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { patientService } from '../../services/patientService';
+import { extractPatientId } from '../../utils/patientUtils';
 
 const PatientRegistration = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    personalInfo: {
-      firstName: '',
-      lastName: '',
-      dateOfBirth: '',
-      gender: '',
-      bloodType: '',
-      age: '',
-      maritalStatus: '',
-    },
-    contactInfo: {
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      postalCode: '',
-    },
-    medicalInfo: {
-      allergies: '',
-      currentMedications: '',
-      chronicConditions: '',
-      previousSurgeries: '',
-    },
-    emergencyContact: {
+    user: {
       name: '',
-      relationship: '',
+      email: '',
+      phone_number: '',
+      password: ''
+    },
+    patient: {
+      dob: '',
+      gender: '',
+      address: '',
       phone: '',
+      emergency_contact: ''
     }
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle form submission
+    try {
+      const response = await patientService.createPatient({
+        user: {
+          name: formData.user.name,
+          email: formData.user.email,
+          phone_number: formData.user.phone_number,
+          password: formData.user.password
+        },
+        dob: formData.patient.dob,
+        gender: formData.patient.gender,
+        address: formData.patient.address,
+        phone: formData.patient.phone,
+        emergency_contact: formData.patient.emergency_contact
+      });
+      
+      const patientId = extractPatientId(response);
+      navigate(`/patients/${patientId}`);
+    } catch (error) {
+      console.error('Error registering patient:', error);
+    }
   };
 
   return (
     <div className="container py-4">
       <h4 className="mb-4">Patient Registration Form</h4>
       <form onSubmit={handleSubmit}>
+        {/* Basic Information */}
         <div className="card mb-4">
-          <div className="card-header">Personal Information</div>
+          <div className="card-header">Basic Information</div>
           <div className="card-body">
             <div className="row g-3">
-              <div className="col-md-6">
+              <div className="col-12">
+                <label className="form-label">Full Name</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="First Name"
-                  value={formData.personalInfo.firstName}
+                  value={formData.user.name}
                   onChange={(e) => setFormData({
                     ...formData,
-                    personalInfo: { ...formData.personalInfo, firstName: e.target.value }
+                    user: { ...formData.user, name: e.target.value }
                   })}
+                  required
                 />
               </div>
               <div className="col-md-6">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Last Name"
-                  value={formData.personalInfo.lastName}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    personalInfo: { ...formData.personalInfo, lastName: e.target.value }
-                  })}
-                />
-              </div>
-              <div className="col-md-4">
-                <input
-                  type="number"
-                  className="form-control"
-                  placeholder="Age"
-                  value={formData.personalInfo.age}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    personalInfo: { ...formData.personalInfo, age: e.target.value }
-                  })}
-                />
-              </div>
-              <div className="col-md-4">
-                <select
-                  className="form-select"
-                  value={formData.personalInfo.gender}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    personalInfo: { ...formData.personalInfo, gender: e.target.value }
-                  })}
-                >
-                  <option value="">Select Gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div className="col-md-4">
-                <select
-                  className="form-select"
-                  value={formData.personalInfo.bloodType}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    personalInfo: { ...formData.personalInfo, bloodType: e.target.value }
-                  })}
-                >
-                  <option value="">Blood Type</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contact Information */}
-        <div className="card mb-4">
-          <div className="card-header">Contact Information</div>
-          <div className="card-body">
-            <div className="row g-3">
-              <div className="col-md-6">
+                <label className="form-label">Email</label>
                 <input
                   type="email"
                   className="form-control"
-                  placeholder="Email"
-                  value={formData.contactInfo.email}
+                  value={formData.user.email}
                   onChange={(e) => setFormData({
                     ...formData,
-                    contactInfo: { ...formData.contactInfo, email: e.target.value }
+                    user: { ...formData.user, email: e.target.value }
                   })}
+                  required
                 />
               </div>
               <div className="col-md-6">
+                <label className="form-label">Password</label>
                 <input
-                  type="tel"
+                  type="password"
                   className="form-control"
-                  placeholder="Phone"
-                  value={formData.contactInfo.phone}
+                  value={formData.user.password}
                   onChange={(e) => setFormData({
                     ...formData,
-                    contactInfo: { ...formData.contactInfo, phone: e.target.value }
+                    user: { ...formData.user, password: e.target.value }
                   })}
-                />
-              </div>
-              <div className="col-12">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Address"
-                  value={formData.contactInfo.address}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    contactInfo: { ...formData.contactInfo, address: e.target.value }
-                  })}
+                  required
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Medical Information */}
+        {/* Patient Details */}
         <div className="card mb-4">
-          <div className="card-header">Medical Information</div>
-          <div className="card-body">
-            <div className="mb-3">
-              <label className="form-label">Allergies</label>
-              <textarea
-                className="form-control"
-                rows="2"
-                value={formData.medicalInfo.allergies}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  medicalInfo: { ...formData.medicalInfo, allergies: e.target.value }
-                })}
-              />
-            </div>
-            {/* Add more medical info fields */}
-          </div>
-        </div>
-
-        {/* Emergency Contact */}
-        <div className="card mb-4">
-          <div className="card-header">Emergency Contact</div>
+          <div className="card-header">Patient Details</div>
           <div className="card-body">
             <div className="row g-3">
               <div className="col-md-6">
+                <label className="form-label">Date of Birth</label>
                 <input
-                  type="text"
+                  type="date"
                   className="form-control"
-                  placeholder="Emergency Contact Name"
-                  value={formData.emergencyContact.name}
+                  value={formData.patient.dob}
                   onChange={(e) => setFormData({
                     ...formData,
-                    emergencyContact: { ...formData.emergencyContact, name: e.target.value }
+                    patient: { ...formData.patient, dob: e.target.value }
                   })}
+                  required
                 />
               </div>
               <div className="col-md-6">
+                <label className="form-label">Gender</label>
+                <select
+                  className="form-select"
+                  value={formData.patient.gender}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    patient: { ...formData.patient, gender: e.target.value }
+                  })}
+                  required
+                >
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div className="col-12">
+                <label className="form-label">Address</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Relationship"
-                  value={formData.emergencyContact.relationship}
+                  value={formData.patient.address}
                   onChange={(e) => setFormData({
                     ...formData,
-                    emergencyContact: { ...formData.emergencyContact, relationship: e.target.value }
+                    patient: { ...formData.patient, address: e.target.value }
                   })}
+                  required
                 />
               </div>
               <div className="col-md-6">
+                <label className="form-label">Phone Number</label>
                 <input
                   type="tel"
                   className="form-control"
-                  placeholder="Emergency Contact Phone"
-                  value={formData.emergencyContact.phone}
+                  value={formData.patient.phone}
                   onChange={(e) => setFormData({
                     ...formData,
-                    emergencyContact: { ...formData.emergencyContact, phone: e.target.value }
+                    patient: { ...formData.patient, phone: e.target.value }
+                  })}
+                  required
+                />
+              </div>
+              <div className="col-md-6">
+                <label className="form-label">Emergency Contact</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={formData.patient.emergency_contact}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    patient: { ...formData.patient, emergency_contact: e.target.value }
                   })}
                 />
               </div>
@@ -230,7 +174,6 @@ const PatientRegistration = () => {
         </div>
 
         <div className="d-grid gap-2 d-md-flex justify-content-md-end">
-          <button type="button" className="btn btn-outline-secondary">Cancel</button>
           <button type="submit" className="btn btn-primary">Register Patient</button>
         </div>
       </form>

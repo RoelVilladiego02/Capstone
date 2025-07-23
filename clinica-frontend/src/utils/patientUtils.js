@@ -60,4 +60,38 @@ export const normalizeAppointment = (appointment, patientId = null) => {
     type: appointment.type || 'Consultation',
     concern: appointment.concern || ''
   };
+};
+
+/**
+ * Normalize patient data structure
+ * @param {Object} patient - Raw patient data from API
+ * @returns {Object} - Normalized patient object
+ */
+export const normalizePatient = (patient) => {
+  if (!patient) return null;
+
+  console.log('Normalizing patient:', patient);
+
+  // Extract user data if it exists
+  const userData = patient.user || {};
+  console.log('Extracted user data:', userData);
+
+  const normalized = {
+    ...patient,
+    id: Number(patient.id),
+    // Try different possible paths for name
+    name: userData.name || patient.name || 'No Name',
+    email: userData.email || patient.email || '',
+    phone: patient.phone || userData.phone_number || '',
+    dob: patient.dob || '',
+    gender: patient.gender || '',
+    address: patient.address || '',
+    emergency_contact: patient.emergency_contact || '',
+    user_id: Number(patient.user_id) || Number(userData.id) || null,
+    // Keep the original user object for reference
+    user: userData
+  };
+
+  console.log('Normalized patient:', normalized);
+  return normalized;
 }; 

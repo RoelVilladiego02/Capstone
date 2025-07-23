@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { medicalRecordService } from '../../services/medicalRecordService';
 import { patientService } from '../../services/patientService';
-import { extractPatientId } from '../../utils/patientUtils';
 import { useAuth } from '../../contexts/AuthContext';
 import CorrectionRequestModal from './CorrectionRequestModal';
 import PersonalNoteModal from './PersonalNoteModal';
@@ -25,11 +24,11 @@ const MedicalRecordView = () => {
   const { currentUser: user } = useAuth();
 
   // Check if user is a patient
-  const isPatient = () => {
+  const isPatient = useMemo(() => {
     if (!user) return false;
     const userRoles = Array.isArray(user.roles) ? user.roles : [user.role];
     return userRoles.includes('Patient');
-  };
+  }, [user]);
 
   // Check if user can add records
   const canAddRecords = () => {
@@ -51,33 +50,65 @@ const MedicalRecordView = () => {
       setLoading(true);
       setError(null);
       let id = patientId;
+
+      if (!user) {
+        setError('Please log in to view medical records');
+        setLoading(false);
+        return;
+      }
+
       try {
-        if (!id) {
-          // Try to get current user's patient ID
-          const profile = await patientService.getMyProfile();
-          id = extractPatientId(profile);
-          if (id && isMounted) {
-            navigate(`/medical-records/${id}`, { replace: true });
-            return;
-          } else if (isMounted) {
-            setError('Patient ID is required');
-            return;
+        // If user is a patient, always get their own ID
+        if (isPatient) {
+          try {
+            const profile = await patientService.getMyProfile();
+            const profileId = profile.patient_id || profile.patient?.id;
+            
+            // If patientId is provided, ensure it matches the patient's own ID
+            if (id && id !== profileId.toString()) {
+              throw new Error('You can only view your own medical records');
+            }
+            id = profileId;
+          } catch (profileError) {
+            console.error('Profile error:', profileError);
+            throw new Error('Unable to retrieve patient profile. Please try again.');
           }
         }
-        if (isMounted) {
-          // Get patient information
-          const patient = await patientService.getPatient(id);
-          setPatientRecord(patient);
-          // Get medical records for the patient
-          const records = await medicalRecordService.getByPatientId(id);
-          setMedicalRecords(records);
+        
+        if (!id) {
+          throw new Error('Patient ID is required');
         }
-      } catch (err) {
+
+        if (!isMounted) return;
+
+        // Get patient information
+        const patient = await patientService.getPatient(id);
+        if (!patient) throw new Error('Patient not found');
+        
+        if (!isMounted) return;
+        setPatientRecord(patient);
+        
+        // Get medical records for the patient
+        const records = await medicalRecordService.getByPatientId(id);
+        if (!Array.isArray(records)) {
+          throw new Error('Invalid response format for medical records');
+        }
+        
+        if (!isMounted) return;
+        setMedicalRecords(records);
+      } catch (error) {
+        console.error('Error fetching data:', error);
         if (isMounted) {
-          setError(err.message || 'Failed to load patient data');
+          if (error.message.includes('Insufficient permissions')) {
+            setError('You do not have permission to view these medical records. Please contact your healthcare provider.');
+          } else {
+            setError(error.message || 'Failed to load patient data');
+          }
         }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -86,7 +117,7 @@ const MedicalRecordView = () => {
     return () => {
       isMounted = false; // cleanup: prevent state updates or navigation after unmount
     };
-  }, [patientId, navigate]);
+  }, [patientId, navigate, isPatient, user]); // Added user as dependency
 
   // Filter records based on search and date
   const filteredRecords = useMemo(() => {
@@ -238,12 +269,12 @@ const MedicalRecordView = () => {
               />
             </div>
             <div className="col-md-3">
-              {canAddRecords() && !isPatient() && (
+              {canAddRecords() && !isPatient && (
                 <button className="btn w-100" style={{ backgroundColor: '#E31937', color: 'white' }}>
                   <i className="bi bi-plus-lg me-2"></i>Add New Record
                 </button>
               )}
-              {isPatient() && (
+              {isPatient && (
                 <div className="d-flex flex-wrap gap-2">
                   <button className="btn btn-outline-secondary" onClick={handleRequestCorrection}>
                     <i className="bi bi-pencil-square me-2"></i>Request Correction
