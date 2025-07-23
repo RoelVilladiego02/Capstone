@@ -4,17 +4,35 @@ namespace App\Http\Controllers;
 
 use App\Models\Patient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
     public function index()
     {
-        return Patient::all();
+        return Patient::with('user')->get();
     }
 
     public function show($id)
     {
-        return Patient::findOrFail($id);
+        $user = request()->user();
+        $userRoles = $this->getUserRoles($user->id);
+        
+        // Allow access if user is a doctor or if they're viewing their own profile
+        if (in_array('Doctor', $userRoles) || in_array('Admin', $userRoles)) {
+            return Patient::with('user')->findOrFail($id);
+        }
+        
+        // If patient is viewing, only allow them to view their own profile
+        $patient = Patient::where('user_id', $user->id)->first();
+        if ($patient && $patient->id == $id) {
+            return $patient->load('user');
+        }
+        
+        return response()->json([
+            'error' => 'Unauthorized',
+            'message' => 'You do not have permission to view this patient profile'
+        ], 403);
     }
 
     public function store(Request $request)
@@ -27,7 +45,8 @@ class PatientController extends Controller
             'phone' => 'required|string',
             'emergency_contact' => 'nullable|string',
         ]);
-        return Patient::create($validated);
+        $patient = Patient::create($validated);
+        return $patient->load('user');
     }
 
     public function update(Request $request, $id)
@@ -42,7 +61,7 @@ class PatientController extends Controller
             'emergency_contact' => 'nullable|string',
         ]);
         $patient->update($validated);
-        return $patient;
+        return $patient->load('user');
     }
 
     public function destroy($id)
@@ -51,23 +70,79 @@ class PatientController extends Controller
         return response()->noContent();
     }
 
+    private function getUserRoles($userId)
+    {
+        return DB::table('role_user')
+            ->join('roles', 'roles.id', '=', 'role_user.role_id')
+            ->where('role_user.user_id', $userId)
+            ->pluck('roles.name')
+            ->toArray();
+    }
+
     public function me(Request $request)
     {
-        $user = $request->user();
-        $patient = \App\Models\Patient::where('user_id', $user->id)->first();
-        
-        if (!$patient) {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'error' => 'User not authenticated',
+                ], 401);
+            }
+
+            // First try to find existing patient profile regardless of role
+            $patient = Patient::where('user_id', $user->id)->first();
+            
+            if ($patient) {
+                // If patient profile exists, return it
+                $patient->load('user');
+                return response()->json([
+                    'patient_id' => $patient->id,
+                    'user_id' => $user->id,
+                    'user' => $patient->user,
+                    'patient' => $patient,
+                    'message' => 'Existing patient profile found'
+                ]);
+            }
+
+            // No patient profile found, get user roles to check authorization
+            $userRoles = $this->getUserRoles($user->id);
+            $hasPatientRole = in_array('Patient', $userRoles);
+            
+            // Only create a patient profile if the user has the Patient role
+            if (!$hasPatientRole) {
+                return response()->json([
+                    'error' => 'User is not a patient',
+                    'message' => 'Only users with Patient role can have a patient profile'
+                ], 403);
+            }
+
+            // Create new patient profile
+            $patient = Patient::create([
+                'user_id' => $user->id,
+                'dob' => now(),  // Default value since it's required
+                'gender' => 'Not Specified',
+                'address' => 'Not Specified',
+                'phone' => $user->phone_number ?? 'Not Specified',
+                'emergency_contact' => null
+            ]);
+
+            $patient->load('user');
+            
             return response()->json([
-                'error' => 'Patient profile not found',
-                'patient_id' => null
-            ], 404);
+                'patient_id' => $patient->id,
+                'user_id' => $user->id,
+                'user' => $patient->user,
+                'patient' => $patient,
+                'message' => 'New patient profile created'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error getting patient profile: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
         }
-        
-        return response()->json([
-            'patient_id' => $patient->id,
-            'user_id' => $user->id,
-            'user' => $user,
-            'patient' => $patient
-        ]);
     }
 }

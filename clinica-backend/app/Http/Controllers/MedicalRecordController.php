@@ -10,33 +10,68 @@ class MedicalRecordController extends Controller
     /**
      * Check if the authenticated user has permission to manage medical records
      */
-    private function checkMedicalRecordPermission()
+    private function checkMedicalRecordPermission($action = 'view', $record = null)
     {
         $user = auth()->user();
         if (!$user) {
-            abort(401, 'Unauthorized');
+            response()->json([
+                'message' => 'Unauthorized'
+            ], 401)->throwResponse();
         }
 
-        // Check if user has any of the authorized roles
-        $authorizedRoles = ['Doctor', 'Admin', 'Nurse', 'Medical Staff'];
         $userRoles = $user->roles->pluck('name')->toArray();
-        
+        $authorizedRoles = ['Admin', 'Medical Staff'];
+
+        // Doctors can access their own patients' records
+        if (in_array('Doctor', $userRoles)) {
+            if ($action === 'view') {
+                // For view actions, we'll filter the results in the query
+                return;
+            }
+            
+            // For other actions, check if the record belongs to the doctor
+            if ($record && $record->doctor_id !== $user->id) {
+                response()->json([
+                    'message' => 'You can only manage medical records for your own patients'
+                ], 403)->throwResponse();
+            }
+            return;
+        }
+
+        // Nurses can view records but not modify them
+        if (in_array('Nurse', $userRoles) && $action === 'view') {
+            return;
+        }
+
+        // For Admin and Medical Staff, check if they have any of the authorized roles
         if (!array_intersect($authorizedRoles, $userRoles)) {
-            abort(403, 'Insufficient permissions to manage medical records');
+            response()->json([
+                'message' => 'Insufficient permissions to manage medical records'
+            ], 403)->throwResponse();
         }
     }
 
     public function index(Request $request)
     {
-        $query = MedicalRecord::with(['doctor', 'patient']);
+        // Check basic authorization
+        $this->checkMedicalRecordPermission('view');
+        
+        $query = MedicalRecord::with(['doctor', 'patient.user']);
+        $user = auth()->user();
+        $userRoles = $user->roles->pluck('name')->toArray();
+
+        // If user is a doctor, only show their patients' records
+        if (in_array('Doctor', $userRoles)) {
+            $query->where('doctor_id', $user->id);
+        }
 
         // Filter by patient_id if provided
         if ($request->has('patient_id')) {
             $query->where('patient_id', $request->patient_id);
         }
 
-        // Filter by doctor_id if provided
-        if ($request->has('doctor_id')) {
+        // Filter by doctor_id if provided (only for admin/medical staff)
+        if ($request->has('doctor_id') && !in_array('Doctor', $userRoles)) {
             $query->where('doctor_id', $request->doctor_id);
         }
 
@@ -62,13 +97,18 @@ class MedicalRecordController extends Controller
 
     public function show($id)
     {
-        return MedicalRecord::with(['doctor', 'patient'])->findOrFail($id);
+        $record = MedicalRecord::with(['doctor', 'patient.user'])->findOrFail($id);
+        
+        // Check authorization with the specific record
+        $this->checkMedicalRecordPermission('view', $record);
+        
+        return $record;
     }
 
     public function store(Request $request)
     {
         // Check authorization
-        $this->checkMedicalRecordPermission();
+        $this->checkMedicalRecordPermission('create');
 
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
@@ -106,8 +146,9 @@ class MedicalRecordController extends Controller
 
     public function update(Request $request, $id)
     {
-        // Check authorization
-        $this->checkMedicalRecordPermission();
+        $record = MedicalRecord::findOrFail($id);
+        // Check authorization with the specific record
+        $this->checkMedicalRecordPermission('update', $record);
 
         $record = MedicalRecord::findOrFail($id);
         $validated = $request->validate([
@@ -141,10 +182,9 @@ class MedicalRecordController extends Controller
 
     public function destroy($id)
     {
-        // Check authorization
-        $this->checkMedicalRecordPermission();
-
         $record = MedicalRecord::findOrFail($id);
+        // Check authorization with the specific record
+        $this->checkMedicalRecordPermission('delete', $record);
         $record->delete();
         
         return response()->json([
